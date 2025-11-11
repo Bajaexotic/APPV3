@@ -88,6 +88,7 @@ class MessageRouter:
         """
         Check if incoming message's TradeAccount disagrees with active (mode, account).
         Non-blocking: logs structured event and could show yellow banner.
+        Auto-disarms LIVE trading on mode drift for safety.
 
         Args:
             msg: DTC message with TradeAccount field
@@ -113,6 +114,13 @@ class MessageRouter:
                 message_type=msg.get("Type"),
                 timestamp_utc=datetime.now(timezone.utc).isoformat(),
             )
+
+            # Auto-disarm LIVE trading on mode drift for safety
+            try:
+                from config.settings import disarm_live_trading
+                disarm_live_trading("mode_drift")
+            except Exception as e:
+                log.error(f"router.mode_drift.disarm_failed: {str(e)}")
 
             # Could show yellow banner here (future enhancement)
             # self._show_mode_drift_banner(incoming_mode, incoming_account)

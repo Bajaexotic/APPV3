@@ -245,6 +245,61 @@ def is_debug_mode(mode: str) -> bool:
     return mode.upper() == "DEBUG"
 
 
+# -------------------- LIVE Arming Gate Check --------------------
+
+
+def is_order_allowed(mode: str, account: str) -> tuple[bool, Optional[str]]:
+    """
+    Check if order submission is allowed based on mode and arming gate.
+
+    Args:
+        mode: Trading mode (\"LIVE\", \"SIM\", \"DEBUG\")
+        account: Account identifier
+
+    Returns:
+        Tuple of (allowed, reason):
+        - (True, None) if order is allowed
+        - (False, reason_string) if order is blocked
+
+    Examples:
+        allowed, reason = is_order_allowed(\"SIM\", \"Sim1\")
+        if allowed:
+            submit_order(...)
+        else:
+            print(f\"Order blocked: {reason}\")
+
+    Safety Rules:
+        - SIM mode: Always allowed (paper trading)
+        - DEBUG mode: Always allowed (testing)
+        - LIVE mode: Only if LIVE_ARMED = True (safety gate)
+
+    Note:
+        This should be called BEFORE every order submission to prevent
+        accidental real-money orders when LIVE trading is not armed.
+    """
+    mode_upper = mode.upper()
+
+    # SIM and DEBUG always allowed
+    if mode_upper in ("SIM", "DEBUG"):
+        return (True, None)
+
+    # LIVE mode requires arming
+    if mode_upper == "LIVE":
+        try:
+            from config.settings import is_live_armed
+
+            if is_live_armed():
+                return (True, None)
+            else:
+                return (False, "LIVE trading not armed - click 'Arm LIVE' button to enable real money orders")
+        except Exception as e:
+            # Safety: If we can't check arming status, block the order
+            return (False, f"LIVE arming gate check failed: {str(e)}")
+
+    # Unknown mode - block for safety
+    return (False, f"Unknown trading mode: {mode}")
+
+
 # -------------------- Auto-detection from DTC messages --------------------
 
 

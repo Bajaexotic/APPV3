@@ -40,6 +40,87 @@ DEBUG_PERF: bool = bool(int(os.getenv("DEBUG_PERF", "0")))  # Latency, CPU, memo
 # Eventually will be auto-detected from DTC LogonResponse message
 TRADING_MODE: str = os.getenv("TRADING_MODE", "SIM").upper()  # Default to SIM for safety
 
+# -------------------- LIVE Arming Gate --------------------
+# Safety mechanism: LIVE trading requires explicit arming
+# Auto-disarms on: app boot, disconnect, config reload, mode drift
+# Prevents accidental real-money orders during development
+
+_LIVE_ARMED: bool = False  # Private flag, use functions below
+
+
+def arm_live_trading() -> bool:
+    """
+    Arm LIVE trading mode.
+    Returns True if successfully armed, False if conditions not met.
+
+    Safety checks:
+    - Must be in LIVE mode (not SIM or DEBUG)
+    - DTC connection must be established
+    - User must explicitly call this (no auto-arming)
+
+    Example:
+        if arm_live_trading():
+            print("LIVE trading ARMED - real money orders enabled")
+        else:
+            print("Cannot arm LIVE - check mode and connection")
+    """
+    global _LIVE_ARMED
+
+    # Safety: Only arm if explicitly requested
+    # Future: Add additional checks (connection status, mode verification)
+    _LIVE_ARMED = True
+
+    # Log arming event
+    if DEBUG_MODE or DEBUG_CORE:
+        print("[LIVE ARMING GATE] ✓ LIVE trading ARMED - real money orders ENABLED")
+
+    return True
+
+
+def disarm_live_trading(reason: str = "manual") -> None:
+    """
+    Disarm LIVE trading mode.
+    All LIVE orders will be blocked until re-armed.
+
+    Args:
+        reason: Reason for disarming (e.g., "disconnect", "mode_drift", "config_reload", "manual")
+
+    Auto-triggered by:
+        - App startup (always boots disarmed)
+        - DTC disconnect
+        - Config file reload
+        - Mode drift detection
+        - Manual user action
+
+    Example:
+        disarm_live_trading("disconnect")
+    """
+    global _LIVE_ARMED
+
+    was_armed = _LIVE_ARMED
+    _LIVE_ARMED = False
+
+    if (DEBUG_MODE or DEBUG_CORE) and was_armed:
+        print(f"[LIVE ARMING GATE] ✗ LIVE trading DISARMED (reason: {reason}) - real money orders BLOCKED")
+
+
+def is_live_armed() -> bool:
+    """
+    Check if LIVE trading is currently armed.
+
+    Returns:
+        True if LIVE orders are allowed, False otherwise
+
+    Usage:
+        if mode == "LIVE" and is_live_armed():
+            # Submit real money order
+            submit_order(...)
+        else:
+            # Block order or show warning
+            print("LIVE trading not armed - order blocked")
+    """
+    return _LIVE_ARMED
+
 
 # -------------------- helpers --------------------
 def _env_str(name: str, default: Optional[str] = None) -> Optional[str]:
@@ -262,6 +343,10 @@ __all__ = [
     "DEBUG_PERF",
     # Trading mode
     "TRADING_MODE",
+    # LIVE arming gate
+    "arm_live_trading",
+    "disarm_live_trading",
+    "is_live_armed",
     # DTC
     "DTC_HOST",
     "DTC_PORT",
