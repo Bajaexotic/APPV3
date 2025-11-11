@@ -21,7 +21,7 @@ log = get_logger(__name__)
 
 # -------------------- Constants & Config (start)
 CSV_FEED_PATH = r"C:\Users\cgrah\Desktop\APPSIERRA\data\snapshot.csv"
-STATE_PATH = r"C:\Users\cgrah\Desktop\APPSIERRA\data\runtime_state_panel2.json"
+# STATE_PATH removed - now dynamically scoped by (mode, account) via _get_state_path()
 
 CSV_REFRESH_MS = 500
 TIMER_TICK_MS = 1000
@@ -93,6 +93,10 @@ class Panel2(QtWidgets.QWidget, ThemeAwareMixin):
     def __init__(self, parent=None):
         super().__init__(parent)
 
+        # CRITICAL: (mode, account) scoping
+        self.current_mode: str = "SIM"
+        self.current_account: str = ""
+
         self.symbol: str = "ES"  # Default symbol, updated via set_symbol()
         self.entry_price: Optional[float] = None  # NEVER pre-populated from cache
         self.entry_qty: int = 0  # NEVER pre-populated from cache
@@ -124,15 +128,15 @@ class Panel2(QtWidgets.QWidget, ThemeAwareMixin):
         self._tf: str = "LIVE"
         self._pnl_up: Optional[bool] = None  # optional hint for pill color
 
-        # Load any persisted state (disabled - rely on DTC position updates instead)
-        # try:
-        #     self._load_state()
-        # except Exception:
-        #     pass
-
         # Build UI and timers
         self._build()
         self._setup_timers()
+
+        # Load scoped state after UI is built
+        try:
+            self._load_state()
+        except Exception as e:
+            log.warning(f"[Panel2] Failed to load initial state: {e}")
 
         # First paint
         self._refresh_all_cells(initial=True)
@@ -783,51 +787,112 @@ class Panel2(QtWidgets.QWidget, ThemeAwareMixin):
     # -------------------- Timers & Feed (end)
 
     # -------------------- Persistence (start)
+    def _get_state_path(self) -> str:
+        """
+        Get scoped state file path for current (mode, account).
+
+        Returns:
+            Path to state file: data/runtime_state_panel2_{mode}_{account}.json
+        """
+        from utils.atomic_persistence import get_scoped_path
+        path = get_scoped_path("runtime_state_panel2", self.current_mode, self.current_account)
+        return str(path)
+
     def _load_state(self):
+        """
+        Load session state from scoped state file.
+        Uses atomic_persistence for safe loading.
+        """
         try:
-            if os.path.exists(STATE_PATH):
-                with open(STATE_PATH, encoding="utf-8") as f:
-                    data = json.load(f)
+            from utils.atomic_persistence import load_json_atomic
+
+            state_path = self._get_state_path()
+            data = load_json_atomic(state_path)
+
+            if data:
                 self.entry_time_epoch = data.get("entry_time_epoch")
                 self.heat_start_epoch = data.get("heat_start_epoch")
-                log.info("[panel2] Restored session timers from runtime_state_panel2.json")
+                self._trade_min_price = data.get("trade_min_price")
+                self._trade_max_price = data.get("trade_max_price")
+                log.info(f"[Panel2] Restored session timers from {state_path}")
             else:
-                # Fallback: attempt to restore live state from DB if an open position exists
-                try:
-                    from services.live_state import load_open_position
-
-                    state = load_open_position()
-                    if state:
-                        self.entry_qty = int(state.get("qty", 0))
-                        self.entry_price = float(state.get("avg_price"))
-                        self.is_long = bool(state.get("is_long"))
-                        et = state.get("entry_time")
-                        if et:
-                            # convert to epoch seconds (assume tz-aware or naive UTC)
-                            try:
-                                self.entry_time_epoch = int(et.timestamp())
-                            except Exception:
-                                self.entry_time_epoch = None
-                        # Reset per-trade extremes to entry as a baseline
-                        self._trade_min_price = self.entry_price
-                        self._trade_max_price = self.entry_price
-                        log.info("[panel2] Restored live state from DB open position")
-                except Exception as e:
-                    log.warning(f"[panel2] DB live-state restore failed: {e}")
+                log.debug(f"[Panel2] No persisted state found for {self.current_mode}/{self.current_account}")
         except Exception as e:
-            log.warning(f"[panel2] Failed to load persisted state: {e}")
+            log.warning(f"[Panel2] Failed to load persisted state: {e}")
 
     def _save_state(self):
+        """
+        Save session state to scoped state file.
+        Uses atomic_persistence for safe writes.
+        """
         try:
-            os.makedirs(os.path.dirname(STATE_PATH), exist_ok=True)
+            from pathlib import Path
+            from utils.atomic_persistence import save_json_atomic
+
+            state_path = Path(self._get_state_path())
+
             data = {
                 "entry_time_epoch": self.entry_time_epoch,
                 "heat_start_epoch": self.heat_start_epoch,
+                "trade_min_price": self._trade_min_price,
+                "trade_max_price": self._trade_max_price,
+                "mode": self.current_mode,
+                "account": self.current_account,
             }
-            with open(STATE_PATH, "w", encoding="utf-8") as f:
-                json.dump(data, f, separators=(",", ":"))
+
+            success = save_json_atomic(data, state_path)
+            if success:
+                log.debug(f"[Panel2] Saved session state for {self.current_mode}/{self.current_account}")
         except Exception as e:
-            log.error(f"[panel2] Persist write failed: {e}")
+            log.error(f"[Panel2] Persist write failed: {e}")
+
+    def set_trading_mode(self, mode: str, account: Optional[str] = None) -> None:
+        """
+        Update trading mode for this panel.
+
+        CRITICAL: This implements the ModeChanged contract:
+        1. Freeze current state (save to current scope)
+        2. Swap to new (mode, account) scope
+        3. Reload session state from new scope
+        4. Single repaint
+
+        Args:
+            mode: Trading mode ("SIM", "LIVE", "DEBUG")
+            account: Account identifier (optional, defaults to empty string)
+        """
+        mode = mode.upper()
+        if mode not in ("DEBUG", "SIM", "LIVE"):
+            log.warning(f"[Panel2] Invalid trading mode: {mode}")
+            return
+
+        # Use empty string if account not provided
+        if account is None:
+            account = ""
+
+        # Check if mode/account actually changed
+        if mode == self.current_mode and account == self.current_account:
+            log.debug(f"[Panel2] Mode/account unchanged: {mode}, {account}")
+            return
+
+        old_scope = (self.current_mode, self.current_account)
+        new_scope = (mode, account)
+        log.info(f"[Panel2] Mode change: {old_scope} → {new_scope}")
+
+        # 1. Freeze: Save current state to old scope
+        self._save_state()
+
+        # 2. Swap: Update active scope
+        self.current_mode = mode
+        self.current_account = account
+
+        # 3. Reload: Load state from new scope
+        self._load_state()
+
+        # 4. Single repaint: Refresh all cells
+        self._refresh_all_cells()
+        self._update_live_banner()
+
+        log.info(f"[Panel2] Switched to {mode}/{account}")
 
     # -------------------- Persistence (end)
 
