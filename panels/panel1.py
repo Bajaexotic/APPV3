@@ -140,15 +140,20 @@ class Panel1(QtWidgets.QWidget):
         self._pnl_val: Optional[float] = None
         self._pnl_pct: Optional[float] = None
 
-        # Data - separate equity curves per mode for full parity
-        self._equity_points: list[tuple[float, float]] = []  # Combined (for legacy compatibility)
-        self._equity_points_sim: list[tuple[float, float]] = []  # SIM mode equity curve
-        self._equity_points_live: list[tuple[float, float]] = []  # LIVE mode equity curve
-        self._current_display_mode: str = "SIM"  # Track which mode's curve we're displaying
+        # CRITICAL: Strict (mode, account) scoping for equity curves
+        # Key: (mode, account) tuple, Value: list of (timestamp, balance) points
+        self._equity_curves: dict[tuple[str, str], list[tuple[float, float]]] = {}
 
-        # Session start baselines - stored when app initializes
-        self._session_start_balance_sim: Optional[float] = None
-        self._session_start_balance_live: Optional[float] = None
+        # Current active scope
+        self.current_mode: str = "SIM"
+        self.current_account: str = ""
+        self._active_scope: tuple[str, str] = ("SIM", "")
+
+        # Legacy compatibility - points to active curve
+        self._equity_points: list[tuple[float, float]] = []
+
+        # Session start baselines - scoped by (mode, account)
+        self._session_start_balances: dict[tuple[str, str], float] = {}
         self._session_start_time: Optional[float] = None
 
         # Graph items
@@ -815,73 +820,104 @@ class Panel1(QtWidgets.QWidget):
         neon_glow.setOffset(0, 0)
         self.mode_badge.setGraphicsEffect(neon_glow)
 
-    def set_trading_mode(self, mode: str) -> None:
+    def _get_equity_curve(self, mode: str, account: str) -> list[tuple[float, float]]:
+        """
+        Get equity curve for (mode, account) scope, initializing if needed.
+
+        Args:
+            mode: Trading mode ("SIM", "LIVE", "DEBUG")
+            account: Account identifier
+
+        Returns:
+            List of (timestamp, balance) points
+        """
+        scope = (mode, account)
+        if scope not in self._equity_curves:
+            self._equity_curves[scope] = []
+        return self._equity_curves[scope]
+
+    def set_trading_mode(self, mode: str, account: Optional[str] = None) -> None:
         """
         Update the badge display for DEBUG/SIM/LIVE modes.
         Uses the unified nested pill styling system with THEME-based colors.
 
+        CRITICAL: This implements the ModeChanged contract:
+        1. Freeze current state (automatic via scope switch)
+        2. Swap to new (mode, account) scope
+        3. Reload equity curve from persistent storage
+        4. Single repaint
+
         Args:
             mode: One of "DEBUG", "SIM", or "LIVE"
+            account: Account identifier (optional, defaults to empty string)
         """
         mode = mode.upper()
         if mode not in ("DEBUG", "SIM", "LIVE"):
             log.warning(f"Invalid trading mode: {mode}")
             return
 
+        # Use empty string if account not provided
+        if account is None:
+            account = ""
+
+        # Check if mode/account actually changed
+        new_scope = (mode, account)
+        if new_scope == self._active_scope:
+            log.debug(f"[Panel1] Mode/account unchanged: {mode}, {account}")
+            return
+
+        old_scope = self._active_scope
+        log.info(f"[Panel1] Mode change: {old_scope} → {new_scope}")
+
+        # 1. Freeze: Current state automatically preserved in scoped dict
+
+        # 2. Swap: Update active scope
+        self.current_mode = mode
+        self.current_account = account
+        self._active_scope = new_scope
+
+        # 3. Reload: Get equity curve for new scope
+        self._equity_points = self._get_equity_curve(mode, account)
+
         # Switch theme first to ensure THEME has correct colors for this mode
         switch_theme(mode.lower())
 
         # Update badge text
-        self.mode_badge.setText(mode)
+        self.mode_badge.setText(f"{mode}")
 
         # Apply badge pill styling from THEME (now with correct colors)
         self._update_badge_style(mode)
 
-        # Switch the displayed equity curve to match the trading mode
-        self.switch_equity_curve_for_mode(mode)
-
-    def switch_equity_curve_for_mode(self, mode: str) -> None:
-        """
-        Switch which equity curve is displayed based on trading mode.
-        SIM mode shows SIM equity curve, LIVE mode shows LIVE equity curve.
-        Also updates the balance label to show the correct mode's balance.
-
-        Args:
-            mode: One of "SIM" or "LIVE"
-        """
-        mode = mode.upper()
-        if mode not in ("SIM", "LIVE", "DEBUG"):
-            return
-
-        self._current_display_mode = mode if mode != "DEBUG" else "SIM"
-
-        # Update the combined equity points list to match the selected mode
-        if self._current_display_mode == "SIM":
-            self._equity_points = list(self._equity_points_sim)
-        else:
-            self._equity_points = list(self._equity_points_live)
-
-        # Update balance label to show correct mode's balance
+        # Update balance label for new scope
         try:
             from core.app_state import get_state_manager
             state = get_state_manager()
             if state:
-                if self._current_display_mode == "SIM":
-                    balance = state.sim_balance
+                if mode == "SIM":
+                    # Get balance for this specific SIM account
+                    from core.sim_balance import get_sim_balance
+                    balance = get_sim_balance(account) if account else 10000.0
                 else:
                     balance = state.live_balance
                 self.set_account_balance(balance)
-                log.debug(f"[panel1] Updated balance for {self._current_display_mode} mode: ${balance:,.2f}")
+                log.debug(f"[Panel1] Updated balance for {mode}/{account}: ${balance:,.2f}")
         except Exception as e:
-            log.debug(f"[panel1] Could not update balance on mode switch: {e}")
+            log.debug(f"[Panel1] Could not update balance on mode switch: {e}")
 
-        # Redraw the graph with the new mode's data
+        # 4. Single repaint: Redraw graph with new scope's data
         self._replot_from_cache()
-
-        # Update PnL display for the new mode
         self._update_pnl_for_current_tf()
 
-        log.debug(f"[panel1] Switched equity curve display to {self._current_display_mode} mode ({len(self._equity_points)} points)")
+        log.info(f"[Panel1] Switched to {mode}/{account} ({len(self._equity_points)} points)")
+
+    def switch_equity_curve_for_mode(self, mode: str) -> None:
+        """
+        DEPRECATED: Use set_trading_mode(mode, account) instead.
+
+        Legacy method for backward compatibility. Calls set_trading_mode.
+        """
+        log.warning("[Panel1] switch_equity_curve_for_mode is deprecated, use set_trading_mode()")
+        self.set_trading_mode(mode, self.current_account)
 
     def _refresh_theme_colors(self) -> None:
         """Refresh all UI elements with current THEME colors."""
@@ -930,64 +966,53 @@ class Panel1(QtWidgets.QWidget):
         This gets called when balance updates arrive from DTC,
         allowing us to build an equity curve over time.
 
+        CRITICAL: Uses strict (mode, account) scoping. Balance updates
+        are stored in the scoped curve for the current active scope.
+
         Args:
             balance: The balance value to add
-            mode: "SIM" or "LIVE" to track separate curves per mode.
-                  If None, uses current_display_mode.
+            mode: Trading mode (optional, defaults to current_mode)
         """
-        print(f"[DEBUG panel1.update_equity_series_from_balance] ENTRY: balance={balance}, mode={mode}, _current_display_mode={self._current_display_mode}")
-
         if balance is None:
-            print(f"[DEBUG panel1.update_equity_series_from_balance] Balance is None, returning")
             return
+
         try:
             import time
 
             now = time.time()
             balance_float = float(balance)
-            print(f"[DEBUG panel1.update_equity_series_from_balance] Converted balance to float: {balance_float}, timestamp: {now}")
 
-            # Determine which mode list to update
+            # Use current active scope if mode not specified
             if mode is None:
-                mode = self._current_display_mode
-            print(f"[DEBUG panel1.update_equity_series_from_balance] Using mode: {mode}")
+                mode = self.current_mode
 
-            # Append new point to the mode-specific curve
-            if mode == "SIM":
-                self._equity_points_sim.append((now, balance_float))
-                # Limit to last 2 hours to avoid memory bloat
-                cutoff_time = now - 7200
-                self._equity_points_sim = [(x, y) for x, y in self._equity_points_sim if x >= cutoff_time]
-                print(f"[DEBUG panel1.update_equity_series_from_balance] Added to SIM curve, now {len(self._equity_points_sim)} points")
-            else:  # LIVE or other
-                self._equity_points_live.append((now, balance_float))
-                cutoff_time = now - 7200
-                self._equity_points_live = [(x, y) for x, y in self._equity_points_live if x >= cutoff_time]
-                print(f"[DEBUG panel1.update_equity_series_from_balance] Added to LIVE curve, now {len(self._equity_points_live)} points")
+            # Get the scoped curve for (mode, account)
+            account = self.current_account
+            scope = (mode, account)
+            curve = self._get_equity_curve(mode, account)
 
-            # Update combined list to reflect current mode's data
-            if self._current_display_mode == "SIM":
-                self._equity_points = list(self._equity_points_sim)
-                print(f"[DEBUG panel1.update_equity_series_from_balance] Updated combined list from SIM: {len(self._equity_points)} points")
-            else:
-                self._equity_points = list(self._equity_points_live)
-                print(f"[DEBUG panel1.update_equity_series_from_balance] Updated combined list from LIVE: {len(self._equity_points)} points")
+            # Append new point
+            curve.append((now, balance_float))
 
-            # Redraw graph with new point
-            print(f"[DEBUG panel1.update_equity_series_from_balance] Calling _replot_from_cache()")
-            self._replot_from_cache()
+            # Limit to last 2 hours to avoid memory bloat
+            cutoff_time = now - 7200
+            curve[:] = [(x, y) for x, y in curve if x >= cutoff_time]
 
-            # Update PnL display with the new balance
-            print(f"[DEBUG panel1.update_equity_series_from_balance] Calling _update_pnl_for_current_tf()")
-            self._update_pnl_for_current_tf()
+            # Update scoped dict
+            self._equity_curves[scope] = curve
 
-            log.debug(f"[panel1] Equity curve updated ({mode} mode): {len(self._equity_points_sim)} SIM points, {len(self._equity_points_live)} LIVE points")
-            print(f"[DEBUG panel1.update_equity_series_from_balance] EXIT: SUCCESS")
+            # Update active points if this is the current scope
+            if scope == self._active_scope:
+                self._equity_points = list(curve)
+
+                # Redraw graph with new point (single repaint)
+                self._replot_from_cache()
+                self._update_pnl_for_current_tf()
+
+            log.debug(f"[Panel1] Equity updated for {mode}/{account}: {len(curve)} points")
+
         except Exception as e:
-            print(f"[DEBUG panel1.update_equity_series_from_balance] EXCEPTION: {e}")
-            import traceback
-            print(traceback.format_exc())
-            log.debug(f"[panel1] update_equity_series_from_balance error: {e}")
+            log.debug(f"[Panel1] update_equity_series_from_balance error: {e}")
 
     def set_pnl_for_timeframe(
         self,
@@ -1018,16 +1043,12 @@ class Panel1(QtWidgets.QWidget):
         Return a slice of the active mode's equity points that fits the active timeframe window.
         If window_sec is None (YTD), return all points.
 
-        Uses mode-specific curves (_equity_points_sim or _equity_points_live)
-        based on current_display_mode.
+        Uses the currently active (mode, account) scoped curve.
         """
-        # Get the appropriate curve for the current mode
-        if self._current_display_mode == "SIM":
-            pts = list(self._equity_points_sim or [])
-        else:
-            pts = list(self._equity_points_live or [])
+        # Get the active curve for current scope
+        pts = list(self._equity_points or [])
 
-        print(f"[DEBUG HOVER] _filtered_points_for_current_tf: mode={self._current_display_mode}, total_pts={len(pts)}")
+        log.debug(f"[Panel1] Filtering points for {self.current_mode}/{self.current_account}: {len(pts)} total")
 
         if not pts:
             print("[DEBUG HOVER] _filtered_points_for_current_tf: No points available")

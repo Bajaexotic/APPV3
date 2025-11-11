@@ -34,6 +34,11 @@ class StateManager(QtCore.QObject):
         self.current_account: Optional[str] = None
         self.is_sim_mode: bool = False
         self.current_mode: str = "SIM"  # "SIM", "LIVE", or "DEBUG"
+
+        # Mode history: list of (timestamp_utc, mode, account) tuples
+        self.mode_history: list[tuple[datetime, str, str]] = []
+        self._add_to_mode_history(self.current_mode, self.current_account or "")
+
         self._log_mode_change("INIT", self.is_sim_mode)
         # -------------------- mode awareness (end)
 
@@ -153,9 +158,60 @@ class StateManager(QtCore.QObject):
         new_mode = account.lower().startswith("sim") if account else False
         if new_mode != old_mode:
             self.is_sim_mode = new_mode
+            # Detect mode string
+            mode_str = "SIM" if new_mode else "LIVE"
+            self._add_to_mode_history(mode_str, account or "")
             self._log_mode_change("Router", new_mode)
 
     # -------------------- mode setter (end)
+
+    # -------------------- mode history tracking (start)
+    def _add_to_mode_history(self, mode: str, account: str) -> None:
+        """
+        Add a mode change to history.
+
+        Args:
+            mode: Trading mode ("LIVE", "SIM", "DEBUG")
+            account: Account identifier
+        """
+        from datetime import timezone
+        timestamp_utc = datetime.now(timezone.utc)
+        self.mode_history.append((timestamp_utc, mode, account))
+
+        # Keep only last 100 mode changes to prevent memory bloat
+        if len(self.mode_history) > 100:
+            self.mode_history = self.mode_history[-100:]
+
+    def get_mode_history(self, limit: Optional[int] = None) -> list[tuple[datetime, str, str]]:
+        """
+        Get mode change history.
+
+        Args:
+            limit: Optional limit on number of entries (most recent)
+
+        Returns:
+            List of (timestamp_utc, mode, account) tuples
+        """
+        if limit:
+            return self.mode_history[-limit:]
+        return list(self.mode_history)
+
+    def get_last_mode_change(self) -> Optional[tuple[datetime, str, str]]:
+        """
+        Get the most recent mode change.
+
+        Returns:
+            Tuple of (timestamp_utc, mode, account) or None if no history
+        """
+        if self.mode_history:
+            return self.mode_history[-1]
+        return None
+
+    def clear_mode_history(self) -> None:
+        """Clear mode history (useful for testing)."""
+        self.mode_history.clear()
+
+    # -------------------- mode history tracking (end)
 
     # -------------------- mode logging (start)
     def _log_mode_change(self, src: str, mode: bool) -> None:
@@ -281,6 +337,10 @@ class StateManager(QtCore.QObject):
             mode = "SIM"
         else:
             mode = "DEBUG"
+
+        # Only add to history if mode actually changed
+        if mode != self.current_mode:
+            self._add_to_mode_history(mode, account)
 
         self.current_mode = mode
         self.current_account = account
