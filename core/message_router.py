@@ -68,11 +68,94 @@ class MessageRouter:
             "MARKET_BIDASK": self._on_market_bidask,
         }
 
+        # Mode tracking for drift detection
+        self._current_mode: str = "DEBUG"
+        self._current_account: str = ""
+
+        # Coalesced UI updates (10Hz refresh rate)
+        self._ui_refresh_pending: bool = False
+        self._ui_refresh_timer: Optional[Any] = None
+        self.UI_REFRESH_INTERVAL_MS: int = 100  # 10 Hz
+
         # Subscribe to Blinker signals for direct DTC event routing
         if auto_subscribe:
             self._subscribe_to_signals()
             if os.getenv("DEBUG_DTC", "0") == "1":
                 log.debug("router.signals.subscribed", msg="Subscribed to Blinker signals")
+
+    # -------------------- Mode Drift Sentinel --------------------
+    def _check_mode_drift(self, msg: dict[str, Any]) -> None:
+        """
+        Check if incoming message's TradeAccount disagrees with active (mode, account).
+        Non-blocking: logs structured event and could show yellow banner.
+
+        Args:
+            msg: DTC message with TradeAccount field
+        """
+        incoming_account = msg.get("TradeAccount", "")
+        if not incoming_account:
+            return
+
+        from datetime import datetime, timezone
+        from utils.trade_mode import detect_mode_from_account
+
+        incoming_mode = detect_mode_from_account(incoming_account)
+
+        # Check for drift
+        if (incoming_mode, incoming_account) != (self._current_mode, self._current_account):
+            # Log structured event
+            log.warning(
+                "MODE_DRIFT_DETECTED",
+                expected_mode=self._current_mode,
+                expected_account=self._current_account,
+                incoming_mode=incoming_mode,
+                incoming_account=incoming_account,
+                message_type=msg.get("Type"),
+                timestamp_utc=datetime.now(timezone.utc).isoformat(),
+            )
+
+            # Could show yellow banner here (future enhancement)
+            # self._show_mode_drift_banner(incoming_mode, incoming_account)
+
+    # -------------------- Coalesced UI Updates --------------------
+    def _schedule_ui_refresh(self) -> None:
+        """
+        Schedule a coalesced UI refresh.
+        UI updates are batched and executed at 10Hz to prevent flicker.
+        """
+        if self._ui_refresh_pending:
+            return
+
+        self._ui_refresh_pending = True
+
+        # Use QTimer if available (Qt environment)
+        try:
+            from PyQt6.QtCore import QTimer
+            QTimer.singleShot(self.UI_REFRESH_INTERVAL_MS, self._flush_ui_updates)
+        except Exception:
+            # Fallback: immediate flush if Qt not available
+            self._flush_ui_updates()
+
+    def _flush_ui_updates(self) -> None:
+        """
+        Execute accumulated UI updates in a single batch.
+        Called after coalescing interval expires.
+        """
+        self._ui_refresh_pending = False
+
+        try:
+            # Update all panels in single batch
+            if self.panel_balance and hasattr(self.panel_balance, "update"):
+                self.panel_balance.update()
+
+            if self.panel_live and hasattr(self.panel_live, "update"):
+                self.panel_live.update()
+
+            if self.panel_stats and hasattr(self.panel_stats, "update"):
+                self.panel_stats.update()
+
+        except Exception as e:
+            log.warning(f"router.ui_flush_error: {str(e)}")
 
     # -------------------- Signal subscription (Blinker) --------------------
     def _subscribe_to_signals(self) -> None:
@@ -114,19 +197,39 @@ class MessageRouter:
             except:
                 pass  # Debug logging failure shouldn't break routing
 
+            # Check for mode drift
+            self._check_mode_drift(msg)
+
             # Check mode precedence and auto-detect trading mode
             try:
-                detected_mode = auto_detect_mode_from_order(msg)
-                if detected_mode:
-                    # Check if mode switch is allowed
-                    if self.state and not self._check_mode_precedence(detected_mode):
-                        log.warning(f"router.order.blocked: mode={detected_mode}, reason=Mode blocked by open position")
-                        return
+                from utils.trade_mode import should_switch_mode_debounced, detect_mode_from_account
 
-                    # Update panel trading mode
-                    if self.panel_balance and hasattr(self.panel_balance, "set_trading_mode"):
-                        marshal_to_qt_thread(self.panel_balance.set_trading_mode, detected_mode)
-                        log_mode_switch("(previous)", detected_mode, msg.get("TradeAccount", ""), log)
+                account = msg.get("TradeAccount", "")
+                if account:
+                    # Use debounced mode switch check
+                    if should_switch_mode_debounced(account, self._current_mode):
+                        detected_mode = detect_mode_from_account(account)
+
+                        # Check if mode switch is allowed
+                        if self.state and not self._check_mode_precedence(detected_mode):
+                            log.warning(f"router.order.blocked: mode={detected_mode}, reason=Mode blocked by open position")
+                            return
+
+                        # Broadcast mode change to all panels
+                        if self.panel_balance and hasattr(self.panel_balance, "set_trading_mode"):
+                            marshal_to_qt_thread(self.panel_balance.set_trading_mode, detected_mode, account)
+
+                        if self.panel_live and hasattr(self.panel_live, "set_trading_mode"):
+                            marshal_to_qt_thread(self.panel_live.set_trading_mode, detected_mode, account)
+
+                        if self.panel_stats and hasattr(self.panel_stats, "set_trading_mode"):
+                            marshal_to_qt_thread(self.panel_stats.set_trading_mode, detected_mode, account)
+
+                        # Update router's current mode/account
+                        self._current_mode = detected_mode
+                        self._current_account = account
+
+                        log_mode_switch(self._current_mode, detected_mode, account, log)
             except Exception as e:
                 log.warning(f"router.order.mode_detect_failed: {str(e)}")
 
@@ -178,21 +281,41 @@ class MessageRouter:
             except:
                 pass  # Debug logging failure shouldn't break routing
 
+            # Check for mode drift
+            self._check_mode_drift(msg)
+
             # Auto-detect trading mode ONLY for non-zero positions
             qty = msg.get("qty", msg.get("PositionQuantity", 0))
             if qty != 0:
                 try:
-                    detected_mode = auto_detect_mode_from_position(msg)
-                    if detected_mode:
-                        # Check if mode switch is allowed
-                        if self.state and not self._check_mode_precedence(detected_mode):
-                            log.warning(f"router.position.blocked: mode={detected_mode}, reason=Mode blocked by open position")
-                            return
+                    from utils.trade_mode import should_switch_mode_debounced, detect_mode_from_account
 
-                        # Update panel trading mode
-                        if self.panel_balance and hasattr(self.panel_balance, "set_trading_mode"):
-                            marshal_to_qt_thread(self.panel_balance.set_trading_mode, detected_mode)
-                            log_mode_switch("(previous)", detected_mode, msg.get("TradeAccount", ""), log)
+                    account = msg.get("TradeAccount", "")
+                    if account:
+                        # Use debounced mode switch check
+                        if should_switch_mode_debounced(account, self._current_mode, qty):
+                            detected_mode = detect_mode_from_account(account)
+
+                            # Check if mode switch is allowed
+                            if self.state and not self._check_mode_precedence(detected_mode):
+                                log.warning(f"router.position.blocked: mode={detected_mode}, reason=Mode blocked by open position")
+                                return
+
+                            # Broadcast mode change to all panels
+                            if self.panel_balance and hasattr(self.panel_balance, "set_trading_mode"):
+                                marshal_to_qt_thread(self.panel_balance.set_trading_mode, detected_mode, account)
+
+                            if self.panel_live and hasattr(self.panel_live, "set_trading_mode"):
+                                marshal_to_qt_thread(self.panel_live.set_trading_mode, detected_mode, account)
+
+                            if self.panel_stats and hasattr(self.panel_stats, "set_trading_mode"):
+                                marshal_to_qt_thread(self.panel_stats.set_trading_mode, detected_mode, account)
+
+                            # Update router's current mode/account
+                            self._current_mode = detected_mode
+                            self._current_account = account
+
+                            log_mode_switch(self._current_mode, detected_mode, account, log)
                 except Exception as e:
                     log.warning(f"router.position.mode_detect_failed: {str(e)}")
 
