@@ -31,11 +31,20 @@ Usage:
 
 from __future__ import annotations
 
+import time
+from collections import deque
 from typing import Literal, Optional
 
 
 # Import settings lazily to avoid circular imports
 _LIVE_ACCOUNT: Optional[str] = None
+
+# Debounce configuration
+DEBOUNCE_WINDOW_MS = 750  # 750ms window
+REQUIRED_CONSECUTIVE = 2  # Require 2 consecutive agreeing signals
+
+# Mode candidate queue: deque of (timestamp_ms, mode, account) tuples
+_mode_candidates: deque[tuple[float, str, str]] = deque(maxlen=10)
 
 
 def _get_live_account() -> str:
@@ -134,6 +143,68 @@ def should_switch_mode(account: str, qty: Optional[int] = None, require_active_p
             return False
 
     return True
+
+
+def should_switch_mode_debounced(account: str, current_mode: Optional[str] = None, qty: Optional[int] = None) -> bool:
+    """
+    Debounced mode switch check - requires 2 consecutive agreeing signals within 750ms window.
+
+    Args:
+        account: TradeAccount string from DTC message
+        current_mode: Currently active mode (for comparison)
+        qty: Position quantity (if from position update)
+
+    Returns:
+        True if mode switch should occur after debounce, False otherwise
+
+    Example:
+        if should_switch_mode_debounced("Sim1", current_mode="LIVE"):
+            # Switch to SIM mode
+            panel.set_trading_mode("SIM", "Sim1")
+
+    Notes:
+        - Prevents rapid mode flickering by requiring consecutive signals
+        - 750ms window ensures signals are recent
+        - First call after long gap won't trigger switch (need 2 consecutive)
+    """
+    # First check if basic switch criteria are met
+    if not should_switch_mode(account, qty=qty):
+        return False
+
+    # Detect mode from account
+    new_mode = detect_mode_from_account(account)
+
+    # If mode hasn't changed, no switch needed
+    if current_mode and new_mode == current_mode:
+        return False
+
+    # Add candidate to queue
+    now_ms = time.time() * 1000
+    _mode_candidates.append((now_ms, new_mode, account))
+
+    # Prune old candidates outside debounce window
+    cutoff_ms = now_ms - DEBOUNCE_WINDOW_MS
+    while _mode_candidates and _mode_candidates[0][0] < cutoff_ms:
+        _mode_candidates.popleft()
+
+    # Check if last N candidates agree
+    if len(_mode_candidates) >= REQUIRED_CONSECUTIVE:
+        recent_candidates = list(_mode_candidates)[-REQUIRED_CONSECUTIVE:]
+        # All must agree on mode AND account
+        if all(c[1] == new_mode and c[2] == account for c in recent_candidates):
+            # Clear queue after successful debounce
+            _mode_candidates.clear()
+            return True
+
+    return False
+
+
+def reset_debounce() -> None:
+    """
+    Reset the debounce queue.
+    Useful after explicit mode changes or on disconnect.
+    """
+    _mode_candidates.clear()
 
 
 def get_mode_display_name(mode: str) -> str:

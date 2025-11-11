@@ -1,12 +1,12 @@
 # -------------------- SIM Balance Manager (start) --------------------
 """
-SIM mode balance tracker with monthly reset.
+SIM mode balance tracker with account-scoped balances.
 Tracks simulated account balance independently from live DTC balance.
-Resets to $10,000 on the 1st of each month.
+Uses ledger-based balance calculation (start + realized_pnl - fees).
 """
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import datetime, timezone
 import json
 from pathlib import Path
 from typing import Optional
@@ -16,120 +16,156 @@ from utils.logger import get_logger
 
 log = get_logger(__name__)
 
-# Default SIM starting balance: $10,000 per month
+# Default SIM starting balance: $10,000 per account
 SIM_STARTING_BALANCE: float = 10000.00
-
-# Storage file for persistence across restarts (use absolute path relative to this file)
-SIM_BALANCE_FILE: Path = Path(__file__).parent.parent / "data" / "sim_balance.json"
 
 
 class SimBalanceManager:
     """
-    Manages simulated trading balance with monthly auto-reset.
+    Manages simulated trading balances with account-scoped storage.
+    Each SIM account (Sim1, Sim2, etc.) has its own balance file.
+
+    CRITICAL: Balance is ledger-derived (starting_balance + realized_pnl - fees).
+    Do NOT depend on DTC balance updates for SIM mode.
     """
 
     def __init__(self):
-        self._balance: float = SIM_STARTING_BALANCE
-        self._last_reset_month: Optional[str] = None  # Format: "YYYY-MM"
-        self._load()
-        self._check_monthly_reset()
+        # Account-scoped balances: {account: balance}
+        self._balances: dict[str, float] = {}
+        # Track which accounts have been initialized
+        self._initialized_accounts: set[str] = set()
 
-    def _get_current_month(self) -> str:
-        """Returns current month in YYYY-MM format."""
-        return datetime.now().strftime("%Y-%m")
+    def _get_balance_file(self, account: str) -> Path:
+        """Get account-scoped balance file path."""
+        # Sanitize account for filename
+        account_safe = "".join(c if c.isalnum() else "_" for c in account)
+        return Path(__file__).parent.parent / "data" / f"sim_balance_{account_safe}.json"
 
-    def _check_monthly_reset(self) -> None:
+    def _load(self, account: str) -> float:
         """
-        Check if a new month has started and reset SIM balance to $10,000 if needed.
-        This allows SIM mode to have a fresh $10K monthly allowance.
+        Load persisted SIM balance for account.
+        Returns starting balance if file doesn't exist.
         """
-        current_month = self._get_current_month()
-        if self._last_reset_month != current_month:
-            self._balance = SIM_STARTING_BALANCE
-            self._last_reset_month = current_month
-            self._save()
-            log.info(f"[SIM] Monthly reset: Balance reset to ${self._balance:,.2f} for {current_month}")
+        balance_file = self._get_balance_file(account)
 
-    def get_balance(self) -> float:
-        """
-        Get current SIM balance. Checks for monthly reset first.
-        """
-        self._check_monthly_reset()
-        return self._balance
-
-    def set_balance(self, balance: float) -> None:
-        """
-        Set SIM balance (e.g., after a simulated trade).
-        """
-        self._balance = float(balance)
-        self._save()
-        log.debug(f"[SIM] Balance updated to ${self._balance:,.2f}")
-
-    def adjust_balance(self, delta: float) -> float:
-        """
-        Adjust balance by delta (positive or negative).
-        Returns new balance.
-        """
-        self._balance += delta
-        self._save()
-        log.debug(f"[SIM] Balance adjusted by {delta:+,.2f} -> ${self._balance:,.2f}")
-        return self._balance
-
-    def reset_balance(self) -> float:
-        """
-        Manually reset SIM balance to $10,000 (e.g., via Ctrl+Shift+R hotkey).
-        Returns the new balance.
-        """
-        self._balance = SIM_STARTING_BALANCE
-        self._last_reset_month = self._get_current_month()
-        self._save()
-        log.info(f"[SIM] Manual reset: Balance reset to ${self._balance:,.2f}")
-        return self._balance
-
-    def _load(self) -> None:
-        """
-        Load persisted SIM balance from file.
-        """
         try:
-            if not SIM_BALANCE_FILE.exists():
-                log.debug("[SIM] No persisted balance file found, using defaults")
-                self._last_reset_month = self._get_current_month()
-                return
+            if not balance_file.exists():
+                log.debug(f"[SIM] No persisted balance for {account}, using starting balance")
+                return SIM_STARTING_BALANCE
 
-            with open(SIM_BALANCE_FILE, encoding="utf-8") as f:
+            with open(balance_file, encoding="utf-8") as f:
                 data = json.load(f)
 
-            self._balance = float(data.get("balance", SIM_STARTING_BALANCE))
-            self._last_reset_month = data.get("last_reset_month", self._get_current_month())
-
-            log.debug(f"[SIM] Loaded balance: ${self._balance:,.2f}, last reset: {self._last_reset_month}")
+            balance = float(data.get("balance", SIM_STARTING_BALANCE))
+            log.debug(f"[SIM] Loaded {account} balance: ${balance:,.2f}")
+            return balance
 
         except Exception as e:
-            log.warning(f"[SIM] Error loading balance file: {e}")
-            self._balance = SIM_STARTING_BALANCE
-            self._last_reset_month = self._get_current_month()
+            log.warning(f"[SIM] Error loading balance file for {account}: {e}")
+            return SIM_STARTING_BALANCE
 
-    def _save(self) -> None:
+    def _save(self, account: str, balance: float) -> None:
         """
-        Persist SIM balance to file.
+        Persist SIM balance for account using atomic write.
         """
         try:
-            # Ensure data directory exists
-            SIM_BALANCE_FILE.parent.mkdir(parents=True, exist_ok=True)
+            from utils.atomic_persistence import save_json_atomic
+
+            balance_file = self._get_balance_file(account)
 
             data = {
-                "balance": self._balance,
-                "last_reset_month": self._last_reset_month,
-                "last_updated": datetime.now().isoformat(),
+                "account": account,
+                "balance": balance,
+                "last_updated_utc": datetime.now(timezone.utc).isoformat(),
             }
 
-            with open(SIM_BALANCE_FILE, "w", encoding="utf-8") as f:
-                json.dump(data, f, indent=2)
-
-            log.debug(f"[SIM] Balance saved: ${self._balance:,.2f}")
+            save_json_atomic(data, balance_file)
+            log.debug(f"[SIM] Balance saved for {account}: ${balance:,.2f}")
 
         except Exception as e:
-            log.error(f"[SIM] Error saving balance file: {e}")
+            log.error(f"[SIM] Error saving balance file for {account}: {e}")
+
+    def get_balance(self, account: str) -> float:
+        """
+        Get current SIM balance for account.
+        Lazily loads from disk if not in memory.
+
+        Args:
+            account: SIM account identifier (e.g., "Sim1")
+
+        Returns:
+            Current balance for account
+
+        Example:
+            balance = manager.get_balance("Sim1")
+        """
+        if account not in self._balances:
+            # Load from disk
+            self._balances[account] = self._load(account)
+            self._initialized_accounts.add(account)
+
+        return self._balances[account]
+
+    def set_balance(self, account: str, balance: float) -> None:
+        """
+        Set SIM balance for account.
+
+        Args:
+            account: SIM account identifier
+            balance: New balance
+
+        Example:
+            manager.set_balance("Sim1", 12000.0)
+        """
+        self._balances[account] = float(balance)
+        self._save(account, balance)
+        log.debug(f"[SIM] Balance updated for {account}: ${balance:,.2f}")
+
+    def adjust_balance(self, account: str, delta: float) -> float:
+        """
+        Adjust balance by delta (positive or negative).
+
+        Args:
+            account: SIM account identifier
+            delta: Amount to adjust (+ or -)
+
+        Returns:
+            New balance after adjustment
+
+        Example:
+            new_balance = manager.adjust_balance("Sim1", -250.0)  # Lost $250
+        """
+        current = self.get_balance(account)
+        new_balance = current + delta
+        self.set_balance(account, new_balance)
+        log.info(f"[SIM] Balance adjusted for {account} by {delta:+,.2f} -> ${new_balance:,.2f}")
+        return new_balance
+
+    def reset_balance(self, account: str) -> float:
+        """
+        Manually reset SIM balance to starting balance.
+
+        Args:
+            account: SIM account identifier
+
+        Returns:
+            New balance (starting balance)
+
+        Example:
+            manager.reset_balance("Sim1")
+        """
+        self.set_balance(account, SIM_STARTING_BALANCE)
+        log.info(f"[SIM] Manual reset for {account}: Balance reset to ${SIM_STARTING_BALANCE:,.2f}")
+        return SIM_STARTING_BALANCE
+
+    def get_all_accounts(self) -> list[str]:
+        """
+        Get list of all SIM accounts that have balances.
+
+        Returns:
+            List of account identifiers
+        """
+        return list(self._initialized_accounts)
 
 
 # Global singleton instance
@@ -146,25 +182,56 @@ def get_sim_balance_manager() -> SimBalanceManager:
     return _sim_balance_manager
 
 
-# Convenience functions
-def get_sim_balance() -> float:
-    """Get current SIM balance."""
-    return get_sim_balance_manager().get_balance()
+# Convenience functions (account-scoped)
+def get_sim_balance(account: str) -> float:
+    """
+    Get current SIM balance for account.
+
+    Args:
+        account: SIM account identifier (e.g., "Sim1")
+
+    Returns:
+        Current balance
+    """
+    return get_sim_balance_manager().get_balance(account)
 
 
-def set_sim_balance(balance: float) -> None:
-    """Set SIM balance."""
-    get_sim_balance_manager().set_balance(balance)
+def set_sim_balance(account: str, balance: float) -> None:
+    """
+    Set SIM balance for account.
+
+    Args:
+        account: SIM account identifier
+        balance: New balance
+    """
+    get_sim_balance_manager().set_balance(account, balance)
 
 
-def adjust_sim_balance(delta: float) -> float:
-    """Adjust SIM balance by delta. Returns new balance."""
-    return get_sim_balance_manager().adjust_balance(delta)
+def adjust_sim_balance(account: str, delta: float) -> float:
+    """
+    Adjust SIM balance by delta.
+
+    Args:
+        account: SIM account identifier
+        delta: Amount to adjust
+
+    Returns:
+        New balance
+    """
+    return get_sim_balance_manager().adjust_balance(account, delta)
 
 
-def reset_sim_balance() -> None:
-    """Reset SIM balance to $10k."""
-    get_sim_balance_manager().reset_balance()
+def reset_sim_balance(account: str) -> float:
+    """
+    Reset SIM balance to starting balance.
+
+    Args:
+        account: SIM account identifier
+
+    Returns:
+        Starting balance
+    """
+    return get_sim_balance_manager().reset_balance(account)
 
 
 # -------------------- SIM Balance Manager (end) --------------------
