@@ -157,6 +157,119 @@ class MessageRouter:
         except Exception as e:
             log.warning(f"router.ui_flush_error: {str(e)}")
 
+    # -------------------- Recovery Sequence (3-step authoritative pull) --------------------
+    def _get_last_seen_timestamp_utc(self) -> Optional[int]:
+        """
+        Get the last seen fill timestamp for recovery sequence.
+        Returns Unix timestamp (seconds) or None to fetch all historical fills.
+
+        Future enhancement: Persist this in data/last_fill_timestamp.json
+        For now, return None to fetch recent fills (handled by num_days parameter)
+        """
+        try:
+            from pathlib import Path
+            from utils.atomic_persistence import load_json_atomic
+
+            last_fill_file = Path("data/last_fill_timestamp.json")
+            data = load_json_atomic(last_fill_file)
+            if data and "timestamp_utc" in data:
+                return int(data["timestamp_utc"])
+        except Exception as e:
+            log.debug(f"recovery.last_fill.load_failed: {str(e)}")
+
+        return None  # Fallback: request fills from last N days
+
+    def _relink_brackets(self) -> None:
+        """
+        Relink bracket orders (OCO, parent-child relationships) after recovery.
+
+        This ensures that bracket orders maintain their relationships after reconnect.
+        Future enhancement: Parse OrderUpdate messages for OCO IDs and rebuild graph.
+        """
+        try:
+            # Future: Implement bracket relinking logic
+            # For now, log that we've reached this step
+            log.info("recovery.brackets.relink_placeholder")
+
+            # When implemented, this should:
+            # 1. Parse all received OrderUpdate messages
+            # 2. Extract OCO_LinkedOrderSystemName fields
+            # 3. Build parent-child relationship graph
+            # 4. Store in state manager or trade manager
+
+        except Exception as e:
+            log.error(f"recovery.brackets.relink_failed: {str(e)}")
+
+    def trigger_recovery_sequence(self, trade_account: Optional[str] = None) -> None:
+        """
+        Execute the 3-step authoritative recovery sequence.
+
+        Sequence:
+            1. Request current positions (Type 500)
+            2. Request open orders (Type 305)
+            3. Request fills since last seen (Type 303)
+
+        Args:
+            trade_account: Optional specific account to recover. If None, uses current account.
+
+        Called by:
+            - App startup (after DTC connection established)
+            - After reconnect (network recovery)
+            - Manual recovery trigger (debug/testing)
+
+        Note:
+            This is synchronous. For async environments, wrap in thread/asyncio task.
+        """
+        if not self._dtc_client:
+            log.warning("recovery.no_client: DTC client not available for recovery")
+            return
+
+        acct = trade_account or self._current_account or None
+
+        try:
+            log.info("recovery.start", account=acct or "ALL")
+
+            # Step 1: Request current positions
+            log.info("recovery.step1.positions", account=acct or "ALL")
+            if hasattr(self._dtc_client, "request_current_positions"):
+                self._dtc_client.request_current_positions(trade_account=acct)
+            else:
+                log.warning("recovery.step1.not_supported")
+
+            # Step 2: Request open orders
+            log.info("recovery.step2.orders", account=acct or "ALL")
+            if hasattr(self._dtc_client, "request_open_orders"):
+                self._dtc_client.request_open_orders(trade_account=acct)
+            else:
+                log.warning("recovery.step2.not_supported")
+
+            # Step 3: Request fills since last seen
+            last_seen = self._get_last_seen_timestamp_utc()
+            if last_seen:
+                log.info("recovery.step3.fills_since", timestamp=last_seen, account=acct or "ALL")
+                if hasattr(self._dtc_client, "request_historical_fills"):
+                    self._dtc_client.request_historical_fills(since_timestamp=last_seen, trade_account=acct)
+                else:
+                    log.warning("recovery.step3.not_supported")
+            else:
+                # Fallback: Request last 7 days of fills
+                log.info("recovery.step3.fills_fallback", num_days=7, account=acct or "ALL")
+                if hasattr(self._dtc_client, "request_historical_fills"):
+                    self._dtc_client.request_historical_fills(num_days=7, trade_account=acct)
+                else:
+                    log.warning("recovery.step3.not_supported")
+
+            log.info("recovery.complete", account=acct or "ALL")
+
+            # Step 4: Relink brackets after messages arrive
+            # Note: This runs immediately, but bracket data comes from async responses
+            self._relink_brackets()
+
+        except Exception as e:
+            log.error("recovery.failed", error=str(e))
+            import traceback
+            traceback.print_exc()
+
     # -------------------- Signal subscription (Blinker) --------------------
     def _subscribe_to_signals(self) -> None:
         """

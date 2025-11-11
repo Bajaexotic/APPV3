@@ -556,21 +556,41 @@ class DTCClientJSON:
         print("\n[OK] All probe requests sent. Listening for responses...\n")
         print("  Enable DEBUG_DTC=1 or DTC_TRAP=1 to see raw message traffic\n")
 
-    def request_historical_fills(self, num_days: int = 30):
+    def request_historical_fills(self, num_days: int = 30, since_timestamp: Optional[int] = None, trade_account: Optional[str] = None):
         """
-        Request historical order fills from Sierra Chart DTC server.
-        This is critical for populating Panel 3 (Trading Stats) on startup.
+        Request historical order fills from Sierra Chart DTC server (Type 303).
+        This is critical for populating Panel 3 (Trading Stats) on startup and during recovery.
 
         Args:
             num_days: Number of days of historical fills to request (default 30)
+            since_timestamp: Optional Unix timestamp (seconds) to request fills since a specific time
+            trade_account: Optional specific trade account to query. If None, uses self.trade_account
+
+        Returns:
+            Request ID for tracking the response
+
+        Note:
+            If since_timestamp is provided, it takes precedence over num_days.
+            Part of the 3-step authoritative recovery sequence.
         """
         fills_req_id = self._next_req_id()
-        fills_req = {"Type": HISTORICAL_ORDER_FILLS_REQUEST, "RequestID": fills_req_id, "NumberOfDays": num_days}
-        if self.trade_account:
-            fills_req["TradeAccount"] = self.trade_account
+        fills_req = {"Type": HISTORICAL_ORDER_FILLS_REQUEST, "RequestID": fills_req_id}
+
+        # Timestamp takes precedence over num_days
+        if since_timestamp is not None:
+            fills_req["StartDateTime"] = since_timestamp
+        else:
+            fills_req["NumberOfDays"] = num_days
+
+        acct = trade_account or self.trade_account
+        if acct:
+            fills_req["TradeAccount"] = acct
 
         self._send(fills_req)
-        print(f"[FILLS REQUEST] Requesting {num_days} days of historical fills (ID={fills_req_id})")
+        if since_timestamp:
+            print(f"[FILLS REQUEST] Requesting fills since timestamp {since_timestamp} (ID={fills_req_id}, Acct={acct or 'ALL'})")
+        else:
+            print(f"[FILLS REQUEST] Requesting {num_days} days of historical fills (ID={fills_req_id}, Acct={acct or 'ALL'})")
         return fills_req_id
 
     def request_account_balance(self, trade_account: Optional[str] = None):
@@ -605,6 +625,48 @@ class DTCClientJSON:
         if DTC_TRAP or os.getenv("DEBUG_DTC"):
             print(f"[ACCT REQUEST] Trade accounts list request sent (ID={acct_req_id})")
         return acct_req_id
+
+    def request_current_positions(self, trade_account: Optional[str] = None):
+        """
+        Request current positions from Sierra Chart DTC server (Type 500).
+        Part of the 3-step authoritative recovery sequence.
+
+        Args:
+            trade_account: Optional specific trade account to query. If None, uses self.trade_account
+
+        Returns:
+            Request ID for tracking the response
+        """
+        pos_req_id = self._next_req_id()
+        pos_req = {"Type": CURRENT_POSITIONS_REQUEST, "RequestID": pos_req_id}
+        acct = trade_account or self.trade_account
+        if acct:
+            pos_req["TradeAccount"] = acct
+        self._send(pos_req)
+        if DTC_TRAP or os.getenv("DEBUG_DTC"):
+            print(f"[POS REQUEST] Current positions request sent (ID={pos_req_id}, Acct={acct or 'ALL'})")
+        return pos_req_id
+
+    def request_open_orders(self, trade_account: Optional[str] = None):
+        """
+        Request all open orders from Sierra Chart DTC server (Type 305).
+        Part of the 3-step authoritative recovery sequence.
+
+        Args:
+            trade_account: Optional specific trade account to query. If None, uses self.trade_account
+
+        Returns:
+            Request ID for tracking the response
+        """
+        orders_req_id = self._next_req_id()
+        orders_req = {"Type": OPEN_ORDERS_REQUEST, "RequestID": orders_req_id}
+        acct = trade_account or self.trade_account
+        if acct:
+            orders_req["TradeAccount"] = acct
+        self._send(orders_req)
+        if DTC_TRAP or os.getenv("DEBUG_DTC"):
+            print(f"[ORDERS REQUEST] Open orders request sent (ID={orders_req_id}, Acct={acct or 'ALL'})")
+        return orders_req_id
 
     def subscribe_symbol(self, symbol: str, exchange: str = ""):
         rid = self._next_req_id()
