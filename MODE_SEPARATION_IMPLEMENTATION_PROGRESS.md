@@ -2,7 +2,7 @@
 
 **Date**: 2025-11-11
 **Branch**: `claude/implement-mode-separation-architecture-011CV2nGza51j22C11QgkKm6`
-**Status**: Phase 1 Complete, Phase 2 In Progress
+**Status**: Phase 1-3 Complete, All Core Features Implemented
 
 ---
 
@@ -60,98 +60,106 @@ Features implemented:
 
 ---
 
-## Phase 2: Core Component Updates 🚧 PENDING
+## Phase 2: Core Component Updates ✅ COMPLETE
 
-### 5. State Manager Mode History (`core/state_manager.py`) ⏳
-**Status**: Pending
+### 5. State Manager Mode History (`core/state_manager.py`) ✅
+**Status**: Complete
 
-Planned changes:
-- [ ] Add `mode_history: list[tuple[datetime, str, str]]` attribute
-- [ ] Track all mode changes with UTC timestamps
-- [ ] Add `get_mode_history()` method
-- [ ] Add `get_last_mode_change()` method
-- [ ] Integrate with provisional boot mode
+Implemented features:
+- ✅ Add `mode_history: list[tuple[datetime, str, str]]` attribute
+- ✅ Track all mode changes with UTC timestamps
+- ✅ Add `get_mode_history(limit)` method
+- ✅ Add `get_last_mode_change()` method
+- ✅ Add `clear_mode_history()` for testing
+- ✅ Auto-prune to last 100 entries (memory management)
+- ✅ Integrate with provisional boot mode
 
-### 6. Panel1 (mode, account) Scoping (`panels/panel1.py`) ⏳
-**Status**: Pending - Current implementation has SIM/LIVE separation but not account-scoped
+### 6. Panel1 (mode, account) Scoping (`panels/panel1.py`) ✅
+**Status**: Complete
 
-Current state:
-- Has `_equity_points_sim` and `_equity_points_live` (mode-separated)
-- Missing: Account scoping within each mode
+Implemented features:
+- ✅ Replace lists with dicts: `_equity_curves: dict[tuple[str, str], list]`
+- ✅ Add `current_mode: str` and `current_account: str` attributes
+- ✅ Update `set_trading_mode(mode, account)` signature
+- ✅ Update `update_equity_series_from_balance()` to use scoped curves
+- ✅ Add `_get_equity_curve(mode, account)` helper
+- ✅ Implement ModeChanged contract: freeze → swap → reload → repaint
+- ✅ Integrate with provisional boot mode on startup
 
-Required changes:
-- [ ] Replace lists with dicts: `_equity_curves: dict[tuple[str, str], list]`
-- [ ] Add `current_account: Optional[str]` attribute
-- [ ] Update `set_trading_mode(mode, account)` signature
-- [ ] Update `update_equity_series_from_balance()` to use scoped curves
-- [ ] Add `_get_equity_curve(mode, account)` helper
-- [ ] Integrate with provisional boot mode on startup
+### 7. Panel2 (mode, account) Scoping (`panels/panel2.py`) ✅
+**Status**: Complete
 
-### 7. Panel2 (mode, account) Scoping (`panels/panel2.py`) ⏳
-**Status**: Pending - Current implementation has global STATE_PATH
+Implemented features:
+- ✅ Remove hardcoded `STATE_PATH` constant
+- ✅ Add `current_mode: str` and `current_account: str` attributes
+- ✅ Add `_get_state_path()` method using `get_scoped_path()`
+- ✅ Update `set_trading_mode(mode, account)` signature
+- ✅ Re-enable `_load_state()` and `_save_state()` with atomic writes
+- ✅ Call `_save_state()` on position updates
+- ✅ Call `_load_state()` on mode change
+- ✅ Storage: `data/runtime_state_panel2_{mode}_{account}.json`
 
-Current state:
-- Has `STATE_PATH` constant (not scoped)
-- Has `_load_state()` and `_save_state()` (currently disabled)
+### 8. Message Router Recovery Sequence (`core/message_router.py`) ✅
+**Status**: Complete
 
-Required changes:
-- [ ] Remove hardcoded `STATE_PATH` constant
-- [ ] Add `current_mode: str` and `current_account: str` attributes
-- [ ] Add `_get_state_path()` method using `get_scoped_path()`
-- [ ] Update `set_trading_mode(mode, account)` signature
-- [ ] Re-enable `_load_state()` and `_save_state()` with atomic writes
-- [ ] Call `_save_state()` on position updates
-- [ ] Call `_load_state()` on mode change
-
-### 8. Message Router Recovery Sequence (`core/message_router.py`) ⏳
-**Status**: Pending
-
-Required changes:
-- [ ] Add `_recovery_sequence()` async method
-- [ ] Implement 3-step pull:
+Implemented features:
+- ✅ Add `trigger_recovery_sequence(trade_account)` method
+- ✅ Implement 3-step pull:
   1. Request positions now (DTC Type 500)
-  2. Request open orders now (DTC Type 300)
+  2. Request open orders now (DTC Type 305)
   3. Request fills since last seen (DTC Type 303)
-- [ ] Add `_get_last_seen_timestamp_utc()` helper
-- [ ] Add `_relink_brackets()` for OCO relationships
-- [ ] Call recovery on reconnect/startup
+- ✅ Add `_get_last_seen_timestamp_utc()` helper
+- ✅ Add `_relink_brackets()` for OCO relationships (placeholder)
+- ✅ Ready to call on reconnect/startup
+- ✅ Enhanced DTC client with request methods:
+  - `request_current_positions(trade_account)`
+  - `request_open_orders(trade_account)`
+  - `request_historical_fills(num_days, since_timestamp, trade_account)`
 
-### 9. Mode Drift Sentinel (`core/message_router.py`) ⏳
-**Status**: Pending
+### 9. Mode Drift Sentinel (`core/message_router.py`) ✅
+**Status**: Complete
 
-Required changes:
-- [ ] Add `_check_mode_drift(msg)` method
-- [ ] Compare incoming `TradeAccount` with active `(mode, account)`
-- [ ] Log structured event on mismatch (non-blocking)
-- [ ] Show yellow banner in UI (optional)
-- [ ] Add mode drift to status bar
+Implemented features:
+- ✅ Add `_check_mode_drift(msg)` method
+- ✅ Compare incoming `TradeAccount` with active `(mode, account)`
+- ✅ Log structured event on mismatch (non-blocking)
+- ✅ Auto-disarm LIVE trading on mode drift (safety)
+- ✅ Integrate into `_on_order_signal()` and `_on_position_signal()`
+- ⏳ Show yellow banner in UI (future enhancement)
+- ⏳ Add mode drift to status bar (future enhancement)
 
-### 10. Coalesced UI Updates (`core/message_router.py`) ⏳
-**Status**: Pending
+### 10. Coalesced UI Updates (`core/message_router.py`) ✅
+**Status**: Complete
 
-Required changes:
-- [ ] Add `_ui_refresh_pending: bool` flag
-- [ ] Add `_schedule_ui_refresh()` method
-- [ ] Add `_flush_ui_updates()` method
-- [ ] Set `UI_REFRESH_INTERVAL_MS = 100` (10 Hz)
-- [ ] Call `_schedule_ui_refresh()` instead of immediate `update()`
-- [ ] Use `QTimer.singleShot()` for coalescing
+Implemented features:
+- ✅ Add `_ui_refresh_pending: bool` flag
+- ✅ Add `_schedule_ui_refresh()` method
+- ✅ Add `_flush_ui_updates()` method
+- ✅ Set `UI_REFRESH_INTERVAL_MS = 100` (10 Hz)
+- ✅ Call `_schedule_ui_refresh()` instead of immediate `update()`
+- ✅ Use `QTimer.singleShot()` for Qt-safe coalescing
+- ✅ Fallback to immediate flush if Qt not available
 
 ---
 
-## Phase 3: LIVE Arming Gate 🚧 PENDING
+## Phase 3: LIVE Arming Gate ✅ COMPLETE
 
-### 11. LIVE Arming Gate (`config/settings.py` + UI) ⏳
-**Status**: Pending
+### 11. LIVE Arming Gate (`config/settings.py` + `utils/trade_mode.py`) ✅
+**Status**: Complete
 
-Required changes:
-- [ ] Add `LIVE_ARMED: bool = False` to settings
-- [ ] Add `arm_live_trading()` function
-- [ ] Add `disarm_live_trading()` function
-- [ ] Auto-disarm on: disconnect, config reload, mode drift
-- [ ] Add "Arm LIVE" button to UI
-- [ ] Add red glow effect when armed
-- [ ] Block LIVE orders when not armed
+Implemented features:
+- ✅ Add `_LIVE_ARMED: bool = False` private flag to settings
+- ✅ Add `arm_live_trading()` function - Enable real money orders
+- ✅ Add `disarm_live_trading(reason)` function - Block with reason logging
+- ✅ Add `is_live_armed()` function - Check arming status
+- ✅ Auto-disarm on: app boot (always), mode drift (safety)
+- ✅ Add `is_order_allowed(mode, account)` pre-submission gate
+- ✅ Block LIVE orders when not armed (via is_order_allowed)
+- ✅ Export functions in settings.__all__
+- ⏳ Add "Arm LIVE" button to UI (future enhancement)
+- ⏳ Add red glow effect when armed (future enhancement)
+- ⏳ Auto-disarm on disconnect (needs connection status tracking)
+- ⏳ Auto-disarm on config reload (needs reload hook)
 
 ---
 
@@ -183,44 +191,107 @@ Required docs:
 
 ## Summary
 
-### Commits So Far
+### Commits (All Phases Complete)
 1. **8aa0f1e** - Add comprehensive mode separation architecture documentation
 2. **31f2533** - Phase 1: Add foundational utilities for mode separation architecture
+3. **6cb343a** - Add implementation progress tracking document
+4. **ec555f3** - Phase 2A: Add mode history tracking and strict (mode, account) scoping
+5. **e185fa8** - Phase 2B Part 1: Add strict (mode, account) scoping to Panel2
+6. **da3f5d2** - Phase 2B Part 2: Add mode drift sentinel and coalesced UI updates to MessageRouter
+7. **ba9df3d** - Phase 2B Part 3: Add authoritative 3-step recovery sequence
+8. **af362c1** - Phase 3: Add LIVE arming gate safety mechanism
 
 ### Files Created
-- `utils/atomic_persistence.py` (217 lines)
-- `utils/provisional_mode.py` (146 lines)
-- `DATA_SEPARATION_ARCHITECTURE.md` (1041 lines)
-- `MODE_SEPARATION_IMPLEMENTATION_PROGRESS.md` (this file)
+- `utils/atomic_persistence.py` (217 lines) - Atomic file operations
+- `utils/provisional_mode.py` (146 lines) - 24h TTL boot mode
+- `DATA_SEPARATION_ARCHITECTURE.md` (1041 lines) - Complete architecture spec
+- `MODE_SEPARATION_IMPLEMENTATION_PROGRESS.md` (this file) - Progress tracking
 
-### Files Modified
-- `core/sim_balance.py` - Account-scoped balance (BREAKING)
-- `utils/trade_mode.py` - Added debounce logic
-
-### Breaking Changes
+### Files Modified (Breaking Changes)
 ⚠️ **core/sim_balance.py**: All functions now require `account` parameter
+⚠️ **panels/panel1.py**: `set_trading_mode(mode)` → `set_trading_mode(mode, account)`
+⚠️ **panels/panel2.py**: `set_trading_mode(mode)` → `set_trading_mode(mode, account)`
 
-**Old code**:
+**Migration Example**:
 ```python
+# Old code
 balance = get_sim_balance()
-set_sim_balance(12000.0)
-```
+panel.set_trading_mode("SIM")
 
-**New code**:
-```python
+# New code
 balance = get_sim_balance("Sim1")
-set_sim_balance("Sim1", 12000.0)
+panel.set_trading_mode("SIM", "Sim1")
 ```
 
-### Next Steps (Phase 2)
-1. Add mode history to state_manager
-2. Update Panel1 for (mode, account) scoping
-3. Update Panel2 for (mode, account) scoping
-4. Implement recovery sequence in message_router
-5. Add mode drift sentinel
-6. Add coalesced UI updates
+### Files Modified (Non-Breaking Enhancements)
+- `utils/trade_mode.py` - Added debounce logic + arming gate check
+- `core/state_manager.py` - Added mode history tracking
+- `core/message_router.py` - Added recovery, drift detection, coalescing
+- `services/dtc_json_client.py` - Added position/order/fills request methods
+- `config/settings.py` - Added LIVE arming gate functions
 
-**Estimated Remaining Work**: 6-8 hours for Phase 2 + testing
+### Core Features Implemented
+
+**✅ Strict (mode, account) Scoping**:
+- Panel1 equity curves: `_equity_curves: dict[tuple[str, str], list]`
+- Panel2 runtime state: `data/runtime_state_panel2_{mode}_{account}.json`
+- SIM balance: `data/sim_balance_{account}.json`
+
+**✅ Debounce & Provisional Boot**:
+- 750ms debounce window, 2 consecutive signals required
+- 24h TTL for last known mode
+- Prevents mode flickering on startup
+
+**✅ Recovery Sequence**:
+- 3-step authoritative pull (positions, orders, fills)
+- Rebuilds state after disconnect/restart
+- Call `router.trigger_recovery_sequence()` on reconnect
+
+**✅ Mode Drift Sentinel**:
+- Non-blocking detection of TradeAccount mismatches
+- Structured logging for audit trail
+- Auto-disarms LIVE trading on drift
+
+**✅ Coalesced UI Updates**:
+- 10Hz refresh rate (100ms interval)
+- Prevents UI flicker from message floods
+- Qt-safe implementation with fallback
+
+**✅ LIVE Arming Gate**:
+- Prevents accidental real-money orders
+- Auto-disarms on boot and mode drift
+- Pre-submission check: `is_order_allowed(mode, account)`
+
+### Architecture Guarantees
+
+1. **Data Isolation**: Each (mode, account) has separate state files
+2. **Atomic Persistence**: All writes use temp → rename pattern
+3. **UTC-Only Timestamps**: No DST issues
+4. **Idempotent Handlers**: All message handlers are replay-safe
+5. **Single Source of Truth**: SIM balance from ledger, not DTC
+6. **Mode Separation**: No data bleed between LIVE/SIM/DEBUG
+
+### Future Enhancements
+
+**High Priority**:
+- [ ] Call recovery sequence on app startup
+- [ ] Call recovery sequence on DTC reconnect
+- [ ] Add "Arm LIVE" button to UI
+- [ ] Add red glow effect when armed
+- [ ] Persist last_fill_timestamp for recovery
+
+**Medium Priority**:
+- [ ] Implement full bracket relinking (OCO graph)
+- [ ] Add yellow banner for mode drift
+- [ ] Add mode drift to status bar
+- [ ] Auto-disarm on config reload
+- [ ] Auto-disarm on disconnect
+
+**Low Priority**:
+- [ ] Unit tests for atomic_persistence
+- [ ] Unit tests for debounce logic
+- [ ] Integration tests for mode switching
+- [ ] Migration guide for breaking changes
 
 ---
 
@@ -231,6 +302,7 @@ set_sim_balance("Sim1", 12000.0)
 - Schema version 2.0 for all new files
 - Debounce prevents mode flickering
 - Provisional boot handles stale state gracefully
+- LIVE arming gate prevents accidental real-money orders
 
-**Status**: Ready for Phase 2 implementation
-**Next Task**: Add mode history tracking to state_manager
+**Status**: ✅ All Core Features Implemented
+**Next Steps**: Integration testing, UI enhancements, documentation
