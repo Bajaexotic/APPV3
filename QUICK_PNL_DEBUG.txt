@@ -1,0 +1,185 @@
+================================================================================
+PnL CALCULATION DEBUG QUICK REFERENCE
+================================================================================
+
+When you close a trade, look for these messages in the console in this order:
+
+1. TRADE CLOSES (trade_service.py:143)
+   ────────────────────────────────────────────────────────────────────────
+   [DEBUG ENTRY] record_closed_trade() called
+
+   ✓ Check:
+     - symbol= (correct symbol?)
+     - exit_price= (is it provided?)
+     - realized_pnl= (None at first, gets calculated)
+
+2. PNL CALCULATION (trade_service.py:175-182)
+   ────────────────────────────────────────────────────────────────────────
+   [DEBUG STEP 2A] PnL calculated from exit_price:
+     formula: (exit_price - entry_price) * qty
+     = (6850.0 - 6844.5) * 2
+     = 11.0
+
+   ✗ If you see:
+     [DEBUG STEP 2B] PnL NOT calculated:
+
+     → This means exit_price is missing!
+     → Check DTC position update messages
+
+3. BALANCE UPDATE (trade_service.py:194-224)
+   ────────────────────────────────────────────────────────────────────────
+   [TRADE CLOSED] 📈 MES | SIM Mode
+   ================================================================================
+     Entry Price: $6,844.50 | Exit Price: $6,850.00
+     Quantity: 2 contracts
+     P&L: +$11.00
+     Previous Balance: $10,000.00
+     New Balance: $10,011.00
+   ================================================================================
+
+   ✓ Check:
+     - Balance changed? (Previous → New)
+     - P&L value shown?
+
+4. DATABASE SAVE (trade_service.py:260-271)
+   ────────────────────────────────────────────────────────────────────────
+   [DEBUG STEP 8] ✓ Trade committed to database with ID=42
+   [DEBUG] Verifying trade was saved:
+     - Trade ID: 42
+     - Realized PnL in DB: 11.0  ← MUST match calculated PnL
+     - Mode in DB: SIM
+     - Is Closed: True
+
+   ✗ If you see:
+     [DEBUG ERROR] Exception in record_closed_trade():
+
+     → Database error - check traceback
+
+5. STATS CALCULATION (stats_service.py:56-227)
+   ────────────────────────────────────────────────────────────────────────
+   [DEBUG STATS] Found 5 trades in database for 1D / mode=SIM
+   [DEBUG STATS] Trade 1: MES | PnL=11.0
+   [DEBUG STATS] Trade 2: ES | PnL=-5.0
+   ...
+   [DEBUG STATS] Total PnL values collected: 5
+   [DEBUG STATS] PnL list: [11.0, -5.0, ...]
+   [DEBUG STATS] Total PnL: 26.0
+
+   ✗ If you see:
+     [DEBUG STATS] Found 0 trades in database for 1D / mode=SIM
+
+     → Trades not being saved OR wrong mode filter
+
+6. PANEL 3 DISPLAY (panel3.py:288-339)
+   ────────────────────────────────────────────────────────────────────────
+   [DEBUG panel3._load_metrics_for_timeframe] STEP 8: Trades found, calling update_metrics
+   [DEBUG panel3._load_metrics_for_timeframe] STEP 12: Total PnL value: 26.0
+
+   UI should show:
+     Total PnL: 26.00
+     Trades: 5
+     Hit Rate: XX%
+
+   ✗ If you see:
+     STEP 8: No trades found, calling display_empty_metrics
+
+     → Empty state shown - no trades for this timeframe
+
+================================================================================
+COMMON ISSUES & QUICK FIXES
+================================================================================
+
+ISSUE: PnL shows None or 0.0
+──────────────────────────────────────────────────────────────────────────────
+Look for: [DEBUG STEP 2B] PnL NOT calculated
+Reason: exit_price is missing from position close message
+
+ACTION:
+  1. Check DTC console for position update messages (Type 306)
+  2. Verify the last message before position closes includes exit information
+  3. Check that exit price is being captured in the position close handler
+
+---
+
+ISSUE: Balance updates but Panel 3 shows 0 PnL
+──────────────────────────────────────────────────────────────────────────────
+Look for: [DEBUG STATS] Found 0 trades in database
+Reason: Trades aren't being saved OR mode filter is wrong
+
+ACTION:
+  1. Check [DEBUG STEP 8] ✓ Trade committed - if you DON'T see this, DB write failed
+  2. Check mode detection: [DEBUG STEP 3] Mode detection: mode=SIM
+  3. If Step 8 shows error, check database connection
+
+---
+
+ISSUE: Panel 3 shows empty (no metrics)
+──────────────────────────────────────────────────────────────────────────────
+Look for: [DEBUG panel3._load_metrics_for_timeframe] STEP 8: No trades found
+Reason: No trades in database for selected timeframe
+
+ACTION:
+  1. Change timeframe (1D → 1W → 1M → YTD)
+  2. Verify trades were saved: Check [DEBUG STEP 8]
+  3. Check app startup: Look for "DATABASE LOAD" message
+
+================================================================================
+DEBUG SETTINGS
+================================================================================
+
+To enable debug output:
+
+OPTION 1 - Environment Variable (PowerShell):
+  $env:DEBUG_MODE="1"
+  python main.py
+
+OPTION 2 - Edit config/settings.py:
+  DEBUG_MODE = True
+
+================================================================================
+KEY FILES TO CHECK
+================================================================================
+
+1. services/trade_service.py (line 143)
+   - record_closed_trade() function
+   - PnL calculation and database write
+
+2. services/stats_service.py (line 46)
+   - compute_trading_stats_for_timeframe() function
+   - Retrieves trades from database
+
+3. panels/panel3.py (line 283)
+   - _load_metrics_for_timeframe() function
+   - Displays metrics in UI
+
+4. logs/app.log
+   - Full error messages and stack traces
+
+================================================================================
+EXPECTED CONSOLE OUTPUT
+================================================================================
+
+When closing a profitable trade:
+
+[DEBUG ENTRY] record_closed_trade() called
+[DEBUG] ✓ Imports successful
+[DEBUG STEP 1] Extract position info
+[DEBUG STEP 2A] PnL calculated from exit_price: = 11.0
+[DEBUG STEP 3] Mode detection: mode=SIM
+[DEBUG STEP 4] Balance update check: realized_pnl is not None: True
+[TRADE CLOSED] 📈 MES | SIM Mode
+  P&L: +$11.00
+  New Balance: $10,011.00
+[DEBUG STEP 8] ✓ Trade committed to database with ID=1
+[DEBUG STATS] Found 1 trades in database for 1D / mode=SIM
+[DEBUG STATS] Total PnL: 11.0
+[DEBUG panel3._load_metrics_for_timeframe] STEP 8: Trades found, calling update_metrics
+Panel 3 displays: Total PnL: $11.00 ✓
+
+================================================================================
+STILL STUCK?
+================================================================================
+
+Check DEBUG_PNL_GUIDE.md for detailed troubleshooting with full trace examples.
+
+Read the full trace section to see what a complete working example looks like!

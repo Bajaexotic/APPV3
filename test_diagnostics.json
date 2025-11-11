@@ -1,0 +1,148 @@
+{
+  "generated": "2025-11-10T21:22:22.192888",
+  "signals": [
+    {
+      "timestamp": "2025-11-10T21:22:21.549641",
+      "signal": "positionsChanged",
+      "sender": "data_bridge",
+      "receiver": "panel2",
+      "connected": true,
+      "metadata": {}
+    },
+    {
+      "timestamp": "2025-11-10T21:22:21.656356",
+      "signal": "positionsChanged",
+      "sender": "state_manager",
+      "receiver": "*",
+      "connected": true,
+      "metadata": {}
+    },
+    {
+      "timestamp": "2025-11-10T21:22:21.706191",
+      "signal": "positionsChanged",
+      "sender": "state_manager",
+      "receiver": "panels",
+      "connected": false,
+      "metadata": {
+        "exists": false
+      }
+    },
+    {
+      "timestamp": "2025-11-10T21:22:21.706191",
+      "signal": "ordersChanged",
+      "sender": "state_manager",
+      "receiver": "panels",
+      "connected": false,
+      "metadata": {
+        "exists": false
+      }
+    },
+    {
+      "timestamp": "2025-11-10T21:22:21.706191",
+      "signal": "pnlChanged",
+      "sender": "state_manager",
+      "receiver": "panels",
+      "connected": false,
+      "metadata": {
+        "exists": false
+      }
+    },
+    {
+      "timestamp": "2025-11-10T21:22:21.706191",
+      "signal": "balanceChanged",
+      "sender": "state_manager",
+      "receiver": "panels",
+      "connected": true,
+      "metadata": {
+        "exists": true
+      }
+    },
+    {
+      "timestamp": "2025-11-10T21:22:21.758085",
+      "signal": "*.on_order_update",
+      "sender": "*",
+      "receiver": "panel2",
+      "connected": true,
+      "metadata": {
+        "slot_exists": true
+      }
+    },
+    {
+      "timestamp": "2025-11-10T21:22:21.758085",
+      "signal": "*.on_position_update",
+      "sender": "*",
+      "receiver": "panel2",
+      "connected": true,
+      "metadata": {
+        "slot_exists": true
+      }
+    },
+    {
+      "timestamp": "2025-11-10T21:22:21.869752",
+      "signal": "pnlChanged",
+      "sender": "state_manager",
+      "receiver": "panel1,panel2,panel3",
+      "connected": true,
+      "metadata": {
+        "panels_updated": [
+          "panel1",
+          "panel2",
+          "panel3"
+        ]
+      }
+    }
+  ],
+  "timing": [
+    {
+      "timestamp": "2025-11-10T21:22:21.604462",
+      "event": "order_update_to_ui",
+      "duration_ms": 0.256700000136334,
+      "threshold_ms": 100.0,
+      "passed": true,
+      "metadata": {
+        "symbol": "MESZ25",
+        "status": "filled"
+      }
+    },
+    {
+      "timestamp": "2025-11-10T21:22:21.981488",
+      "event": "dtc_to_ui_total_latency",
+      "duration_ms": 0.252800000453135,
+      "threshold_ms": 100.0,
+      "passed": true,
+      "metadata": {
+        "message_type": "order_update"
+      }
+    },
+    {
+      "timestamp": "2025-11-10T21:22:22.117091",
+      "event": "high_frequency_update_burst",
+      "duration_ms": 0.7045899999957328,
+      "threshold_ms": 10.0,
+      "passed": true,
+      "metadata": {
+        "message_count": 100,
+        "total_ms": 70.45899999957328
+      }
+    }
+  ],
+  "errors": [
+    {
+      "timestamp": "2025-11-10T21:22:21.762072",
+      "test": "tests/test_integration.py::TestSignalConnections::test_signal_connection_count_is_correct",
+      "error_type": "Skipped",
+      "message": "StateManager doesn't have PyQt signals",
+      "stack_trace": "[<TracebackEntry C:\\Users\\cgrah\\AppData\\Local\\Programs\\Python\\Python312\\Lib\\site-packages\\_pytest\\runner.py:353>, <TracebackEntry C:\\Users\\cgrah\\AppData\\Local\\Programs\\Python\\Python312\\Lib\\site-packages\\_pytest\\runner.py:245>, <TracebackEntry C:\\Users\\cgrah\\AppData\\Local\\Programs\\Python\\Python312\\Lib\\site-packages\\pluggy\\_hooks.py:512>, <TracebackEntry C:\\Users\\cgrah\\AppData\\Local\\Programs\\Python\\Python312\\Lib\\site-packages\\pluggy\\_manager.py:120>, <TracebackEntry C:\\Users\\cgrah\\AppData\\Local\\Programs\\Python\\Python312\\Lib\\site-packages\\pluggy\\_callers.py:167>, <TracebackEntry C:\\Users\\cgrah\\AppData\\Local\\Programs\\Python\\Python312\\Lib\\site-packages\\pluggy\\_callers.py:139>, <TracebackEntry C:\\Users\\cgrah\\AppData\\Local\\Programs\\Python\\Python312\\Lib\\site-packages\\_pytest\\logging.py:850>, <TracebackEntry C:\\Users\\cgrah\\AppData\\Local\\Programs\\Python\\Python312\\Lib\\site-packages\\pluggy\\_callers.py:139>, <TracebackEntry C:\\Users\\cgrah\\AppData\\Local\\Programs\\Python\\Python312\\Lib\\site-packages\\_pytest\\capture.py:900>, <TracebackEntry C:\\Users\\cgrah\\AppData\\Local\\Programs\\Python\\Python312\\Lib\\site-packages\\pluggy\\_callers.py:139>, <TracebackEntry C:\\Users\\cgrah\\AppData\\Local\\Programs\\Python\\Python312\\Lib\\site-packages\\_pytest\\skipping.py:268>, <TracebackEntry C:\\Users\\cgrah\\AppData\\Local\\Programs\\Python\\Python312\\Lib\\site-packages\\pluggy\\_callers.py:121>, <TracebackEntry C:\\Users\\cgrah\\AppData\\Local\\Programs\\Python\\Python312\\Lib\\site-packages\\_pytest\\runner.py:179>, <TracebackEntry C:\\Users\\cgrah\\AppData\\Local\\Programs\\Python\\Python312\\Lib\\site-packages\\_pytest\\python.py:1720>, <TracebackEntry C:\\Users\\cgrah\\AppData\\Local\\Programs\\Python\\Python312\\Lib\\site-packages\\pluggy\\_hooks.py:512>, <TracebackEntry C:\\Users\\cgrah\\AppData\\Local\\Programs\\Python\\Python312\\Lib\\site-packages\\pluggy\\_manager.py:120>, <TracebackEntry C:\\Users\\cgrah\\AppData\\Local\\Programs\\Python\\Python312\\Lib\\site-packages\\pluggy\\_callers.py:167>, <TracebackEntry C:\\Users\\cgrah\\AppData\\Local\\Programs\\Python\\Python312\\Lib\\site-packages\\pluggy\\_callers.py:121>, <TracebackEntry C:\\Users\\cgrah\\AppData\\Local\\Programs\\Python\\Python312\\Lib\\site-packages\\_pytest\\python.py:166>, <TracebackEntry C:\\Users\\cgrah\\OneDrive\\Desktop\\APPSIERRA\\tests\\test_integration.py:274>, <TracebackEntry C:\\Users\\cgrah\\AppData\\Local\\Programs\\Python\\Python312\\Lib\\site-packages\\_pytest\\outcomes.py:139>]"
+    }
+  ],
+  "memory": [],
+  "db_checks": [],
+  "summary": {
+    "total_signals": 9,
+    "connected_signals": 6,
+    "timing_violations": 0,
+    "total_errors": 1,
+    "memory_snapshots": 0,
+    "db_check_failures": 0
+  }
+}

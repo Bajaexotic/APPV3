@@ -1,0 +1,27 @@
+# APPSIERRA Testing Requirements
+# Install with: pip install -r requirements-test.txt
+
+# Core testing framework
+pytest>=7.4.0
+pytest-cov>=4.1.0
+pytest-mock>=3.11.1
+pytest-timeout>=2.1.0
+pytest-xdist>=3.3.1
+
+# PyQt6 testing
+pytest-qt>=4.2.0
+PyQt6>=6.5.0
+
+# Coverage and reporting
+coverage[toml]>=7.3.0
+
+# Code quality
+ruff>=0.1.0
+mypy>=1.5.0
+
+# Performance profiling
+memory-profiler>=0.61.0
+psutil>=5.9.5
+
+# Utilities
+python-dateutil>=2.8.2

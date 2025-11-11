@@ -1,0 +1,114 @@
+================================================================================
+IMMEDIATE ACTION REQUIRED
+================================================================================
+
+ROOT CAUSE FOUND AND PARTIALLY FIXED
+
+1. FIXED BUGS (Already Applied):
+   ✓ Fixed f-string formatting error in trade_service.py (line 282, 284)
+   ✓ Fixed logger keyword argument bug
+   ✓ Fixed relative path in sim_balance.py
+   ✓ Added comprehensive debug logging
+
+2. NEW FINDING:
+   ✗ on_position_update() calls record_closed_trade() WITHOUT exit_price
+   ✗ DTC Type 306 message apparently doesn't include exit price
+   ✗ Need to find where exit price comes from!
+
+================================================================================
+WHAT TO DO NOW
+================================================================================
+
+STEP 1: Run the app
+STEP 2: Close a trade
+STEP 3: Look in the console for this output:
+
+   [DEBUG on_position_update] DTC Type 306 Message received:
+     Payload keys: [list of keys]
+     Full payload: {the message dict}
+     Extracted: symbol=MES, qty=0, avg_entry=6844.5
+
+STEP 4: COPY & PASTE that entire debug output to me
+
+This will show us:
+  - What fields are in the DTC position update message
+  - Whether there's an exit_price field
+  - Whether there's a last_price or close_price field
+  - Any other clues about position closure price
+
+================================================================================
+WHY THIS MATTERS
+================================================================================
+
+Current situation:
+  ✓ Balance updates correctly
+  ✓ Trade is recorded to database
+  ✗ But realized_pnl shows as NULL in database
+  ✗ Panel 3 displays PnL as 0.00
+
+Once we find the exit price in the DTC message:
+  ✓ We can extract it
+  ✓ Pass it to record_closed_trade()
+  ✓ PnL will be calculated correctly
+  ✓ Database will store the real PnL
+  ✓ Panel 3 will display correct statistics
+
+================================================================================
+DEBUG OUTPUT LOCATION
+================================================================================
+
+Console Output:
+  - Watch the terminal/console when you close a trade
+  - Look for: "[DEBUG on_position_update] DTC Type 306 Message received:"
+  - This is what we need!
+
+Logs:
+  - logs/app.log (rotating log file)
+
+================================================================================
+THE KEY QUESTION
+================================================================================
+
+Does the DTC Type 306 (PositionUpdate) message include the exit price?
+
+Likely field names to look for:
+  - exit_price
+  - last_price
+  - close_price
+  - bid
+  - ask
+  - mid_price
+  - settlement_price
+  - average_price
+  - vwap
+  - Any field with "price" in the name
+
+Once we know:
+  1. The field name (if it exists)
+  2. The value (actual price)
+
+We can add code to extract it and pass it to record_closed_trade()
+
+================================================================================
+QUICK FIX ONCE WE HAVE THE ANSWER
+================================================================================
+
+Once you send me the debug output, I can immediately:
+
+1. Update on_position_update() to extract exit_price from payload
+2. Pass exit_price to record_closed_trade()
+3. All PnL calculations will work
+4. You're done!
+
+Estimated time to fix: 5 minutes after seeing the payload
+
+================================================================================
+SUMMARY
+================================================================================
+
+What's broken: PnL shows 0.00 when it should show actual profit/loss
+Why: exit_price is missing when recording the trade
+How to fix: Find the exit price in the DTC message
+Next step: Run app, close trade, send me the debug output
+
+READY? Let's do this! 🎯

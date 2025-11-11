@@ -1,0 +1,130 @@
+================================================================================
+DTC VERIFICATION - START HERE
+================================================================================
+
+You said: "instead of you guessing how can we verify dtc messaging for proper handshake"
+
+ANSWER: Run this command NOW to see EXACTLY what's happening:
+
+================================================================================
+STEP 1: Run with Debug Enabled
+================================================================================
+
+Open Command Prompt and run:
+
+    set DEBUG_DTC=1
+    set DEBUG_DATA=1
+    python main.py
+
+This enables detailed DTC debugging that prints every message to console.
+
+================================================================================
+STEP 2: Watch for These Messages (in order)
+================================================================================
+
+Copy/paste these sections as they appear:
+
+1. HANDSHAKE:
+   Look for: [DTC-ALL-TYPES] Type: 2 (LogonResponse)
+   Means: ✓ Logon succeeded
+
+2. ACCOUNTS:
+   Look for: [DTC-ALL-TYPES] Type: 401 (TradeAccountResponse)
+   Means: ✓ Got your account info
+
+3. BALANCE:
+   Look for: [BALANCE RESPONSE] DTC Message Type: 600 (AccountBalanceUpdate)
+             Raw JSON: {...}
+   Means: ✓ Got balance data
+
+4. POSITIONS:
+   Look for: [DTC-ALL-TYPES] Type: 306 (PositionUpdate)
+   Means: ✓ Got positions
+
+================================================================================
+STEP 3: Share What You See
+================================================================================
+
+After running, tell us:
+
+A) Did you see "Type: 2 (LogonResponse)"? YES / NO
+
+B) Did you see "Type: 401 (TradeAccountResponse)"? YES / NO
+
+C) Did you see balance messages (Type 600 or 602)? YES / NO
+   If YES, copy the exact JSON from the "Raw JSON:" line
+
+D) Did you see position messages (Type 306)? YES / NO
+
+E) Did you see any error messages? YES / NO
+   If YES, copy them exactly
+
+================================================================================
+ALTERNATIVE: Raw Socket Test (No App)
+================================================================================
+
+If you want to test the connection directly without the app running:
+
+    python capture_dtc_handshake.py --host 127.0.0.1 --port 11099 --timeout 10
+
+This connects directly to Sierra Chart and captures messages.
+
+================================================================================
+WHAT THIS PROVES
+================================================================================
+
+Once we see the actual messages:
+
+IF you see LogonResponse + TradeAccountResponse:
+  ✓ Connection works
+  ✓ Handshake is correct
+  → We know the TCP layer is fine
+
+IF you see BalanceUpdate/BalanceResponse:
+  ✓ Balance data is available
+  → It's just a routing/parsing problem (we can fix that)
+
+IF you DON'T see BalanceUpdate/BalanceResponse:
+  ✓ This is expected for SIM accounts (Sierra Chart limitation)
+  → We build equity curve from fills instead
+
+IF you see errors:
+  ✓ We know exactly what's broken
+  → We fix the specific issue
+
+================================================================================
+FILES CREATED FOR YOU
+================================================================================
+
+DTC_VERIFICATION_PLAN.md
+  → Full guide with all options and expected output
+
+capture_dtc_handshake.py
+  → Direct socket test (no app needed)
+
+RUN_DTC_VERIFICATION.bat
+  → Batch file that sets debug flags and runs app
+
+VERIFY_DTC_FLOW.md
+  → Detailed checklist and troubleshooting
+
+================================================================================
+DO THIS NOW
+================================================================================
+
+1. Open Command Prompt in: C:\Users\cgrah\OneDrive\Desktop\APPSIERRA
+
+2. Run:
+   set DEBUG_DTC=1
+   set DEBUG_DATA=1
+   python main.py
+
+3. Wait 5 seconds for connection
+
+4. Copy all the [DTC-...] messages you see
+
+5. Share them with the exact text
+
+Then we'll KNOW what's actually happening instead of guessing.
+
+================================================================================

@@ -1,0 +1,61 @@
+{
+  "generated": "2025-11-08T22:10:00",
+  "signals": [
+    {
+      "signal": "set_trading_mode",
+      "sender": "Panel1",
+      "receiver": "Panel1",
+      "connected": true
+    },
+    {
+      "signal": "on_order_update",
+      "sender": "DTC",
+      "receiver": "Panel2",
+      "connected": false
+    },
+    {
+      "signal": "timeframeChanged",
+      "sender": "Panel3",
+      "receiver": "AppManager",
+      "connected": true
+    }
+  ],
+  "timing": [
+    {
+      "event": "panel1_balance_update",
+      "duration_ms": 145.2,
+      "threshold_ms": 100.0,
+      "passed": false
+    },
+    {
+      "event": "panel2_order_update_filled",
+      "duration_ms": 8.3,
+      "threshold_ms": 100.0,
+      "passed": true
+    }
+  ],
+  "errors": [
+    {
+      "test": "test_panel2_comprehensive.py::TestPanel2OrderUpdates::test_on_order_update_filled",
+      "error_type": "KeyError",
+      "message": "KeyError: 'OrderStatus' - Schema mismatch in DTC message",
+      "stack_trace": "Traceback (most recent call last):\n  File 'test_panel2.py', line 45\n    status = msg['OrderStatus']"
+    }
+  ],
+  "memory": [],
+  "db_checks": [
+    {
+      "check": "sqlite_integrity",
+      "passed": false,
+      "message": "Database corruption detected"
+    }
+  ],
+  "summary": {
+    "total_signals": 3,
+    "connected_signals": 2,
+    "timing_violations": 1,
+    "total_errors": 1,
+    "memory_snapshots": 0,
+    "db_check_failures": 1
+  }
+}

@@ -1,0 +1,201 @@
+{
+  "message_type": {
+    "type": 301,
+    "name": "OrderUpdate",
+    "category": "Order and Trade Messages (300-399)",
+    "dtc_spec": "https://dtcprotocol.org/index.php?page=doc/DTCMessageDocumentation.php"
+  },
+  "schema_analysis": {
+    "pydantic_class": "OrderUpdate",
+    "total_fields": 41,
+    "optional_fields_count": 41,
+    "required_fields_count": 0,
+    "helper_methods": [
+      "construct",
+      "copy",
+      "dict",
+      "from_orm",
+      "get_avg_fill_price",
+      "get_high_during_position",
+      "get_low_during_position",
+      "get_order_type",
+      "get_price",
+      "get_quantity",
+      "get_reason",
+      "get_side",
+      "get_status",
+      "get_text",
+      "get_timestamp",
+      "is_fill_update",
+      "is_terminal",
+      "json",
+      "model_construct",
+      "model_copy",
+      "model_dump_json",
+      "model_parametrized_name",
+      "model_post_init",
+      "model_rebuild",
+      "model_validate_json",
+      "model_validate_strings",
+      "parse_file",
+      "parse_obj",
+      "parse_raw",
+      "schema",
+      "schema_json",
+      "update_forward_refs",
+      "validate",
+      "validate_buy_sell",
+      "validate_order_status",
+      "validate_order_type",
+      "validate_order_update_reason"
+    ],
+    "field_groups": {
+      "identity": [
+        "ServerOrderID",
+        "ClientOrderID",
+        "TradeAccount"
+      ],
+      "symbol": [
+        "Symbol",
+        "Exchange"
+      ],
+      "order_details": [
+        "BuySell",
+        "OrderType",
+        "OrderStatus",
+        "OrderUpdateReason"
+      ],
+      "quantities": [
+        "OrderQuantity",
+        "Quantity",
+        "TotalQuantity",
+        "FilledQuantity",
+        "RemainingQuantity"
+      ],
+      "prices": [
+        "Price1",
+        "Price2",
+        "Price",
+        "LimitPrice",
+        "StopPrice"
+      ],
+      "fill_details": [
+        "AverageFillPrice",
+        "LastFillPrice",
+        "LastFillQuantity",
+        "LastFillDateTime"
+      ],
+      "timestamps": [
+        "OrderReceivedDateTime",
+        "LatestTransactionDateTime"
+      ],
+      "metadata": [
+        "RequestID",
+        "MessageNumber",
+        "TotalNumberMessages",
+        "Unsolicited"
+      ]
+    }
+  },
+  "request_id_analysis": {
+    "field_name": "RequestID",
+    "schema_support": true,
+    "optional": true,
+    "purpose": "Links responses to requests in request/response pattern",
+    "special_values": {
+      "0": {
+        "meaning": "Unsolicited broadcast from server",
+        "trigger": "Server-initiated updates (fills, status changes, etc.)",
+        "requires_callback": false
+      },
+      "None": {
+        "meaning": "Field not present in message",
+        "trigger": "Unsolicited broadcasts or legacy messages",
+        "requires_callback": false
+      },
+      ">0": {
+        "meaning": "Response to a specific request",
+        "trigger": "Reply to client request (e.g., OpenOrdersRequest)",
+        "requires_callback": true
+      }
+    },
+    "request_id_map": {
+      "1": "Type 400 (TradeAccountsRequest)",
+      "2": "Type 500 (PositionsRequest) - SKIPPED",
+      "3": "Type 305 (OpenOrdersRequest)",
+      "4": "Type 303 (HistoricalOrderFillsRequest)",
+      "5": "Type 601 (AccountBalanceRequest)"
+    },
+    "handling_location": "core/data_bridge.py:444-469"
+  },
+  "request_id_zero_classification": {
+    "request_id": 0,
+    "classification": "Sierra broadcast event",
+    "trigger_type": "Unsolicited server push",
+    "description": "RequestID=0 indicates an unsolicited OrderUpdate broadcast from Sierra Chart. These are live updates triggered by order state changes (fills, cancellations, rejections, etc.) and are NOT responses to client requests.",
+    "examples": [
+      "Order fill notification when order executes",
+      "Order status change from OPEN to FILLED",
+      "Order rejection after submission",
+      "Partial fill updates"
+    ],
+    "routing": {
+      "signal": "signal_order (Blinker)",
+      "handler": "MessageRouter._on_order_signal()",
+      "panels": [
+        "Panel2 (live trading)",
+        "Panel3 (statistics)"
+      ],
+      "state_manager": "StateManager.record_order()"
+    },
+    "correlation": {
+      "use_server_order_id": true,
+      "use_client_order_id": true,
+      "description": "Use ServerOrderID to correlate with existing orders. Sierra assigns ServerOrderID when order is accepted."
+    }
+  },
+  "missing_fields_analysis": {
+    "schema_status": "Valid",
+    "missing_fields": [],
+    "extra_fields": [],
+    "coverage": {
+      "total_known_fields": 41,
+      "defined_fields": 41,
+      "coverage_pct": 100.0
+    }
+  },
+  "recommended_actions": [
+    {
+      "action": "No schema changes required",
+      "reason": "All known Sierra Chart OrderUpdate fields are defined in the schema",
+      "priority": "N/A"
+    },
+    {
+      "action": "Handle RequestID=0 as unsolicited broadcast",
+      "reason": "RequestID=0 indicates server-initiated updates, not responses to requests",
+      "priority": "High",
+      "implementation": "Already implemented in MessageRouter._on_order_signal()"
+    },
+    {
+      "action": "Correlate OrderUpdate messages using ServerOrderID",
+      "reason": "ServerOrderID is the authoritative identifier for tracking order state",
+      "priority": "High",
+      "implementation": "Use ServerOrderID to link fills, status changes to original orders"
+    },
+    {
+      "action": "Monitor Unsolicited field",
+      "reason": "Unsolicited=1 explicitly marks live updates vs request responses",
+      "priority": "Low",
+      "implementation": "Already logged in signal handlers for debugging"
+    }
+  ],
+  "summary": {
+    "type": 301,
+    "name": "OrderUpdate",
+    "request_id": 0,
+    "classification": "Sierra broadcast event",
+    "schema_status": "Valid",
+    "missing_fields": [],
+    "recommended_action": "RequestID=0 indicates an unsolicited OrderUpdate broadcast from Sierra Chart. These are live updates triggered by order state changes (fills, cancellations, rejections, etc.) and are NOT responses to client requests."
+  }
+}

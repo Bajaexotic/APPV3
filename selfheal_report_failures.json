@@ -1,0 +1,87 @@
+{
+  "generated": "2025-11-08T22:10:05",
+  "summary": {
+    "total_issues": 4,
+    "auto_fixable": 1,
+    "patches_generated": 1,
+    "severity_breakdown": {
+      "CRITICAL": 1,
+      "HIGH": 2,
+      "MEDIUM": 1,
+      "LOW": 0
+    }
+  },
+  "issues_by_type": {
+    "BrokenSignal": [
+      {
+        "type": "BrokenSignal",
+        "severity": "HIGH",
+        "component": "DTC",
+        "signal_name": "on_order_update",
+        "description": "Signal on_order_update from DTC to Panel2 is not connected",
+        "recommendation": "Connect on_order_update in AppManager._setup_cross_panel_linkage()",
+        "auto_fix": true
+      }
+    ],
+    "TimingRegression": [
+      {
+        "type": "TimingRegression",
+        "severity": "MEDIUM",
+        "component": "panel1_balance_update",
+        "description": "Event 'panel1_balance_update' took 145.20ms, exceeding 100ms threshold",
+        "recommendation": "Optimize panel1_balance_update to improve performance",
+        "auto_fix": false,
+        "metrics": {
+          "actual_ms": 145.2,
+          "threshold_ms": 100.0,
+          "over_by_ms": 45.2
+        }
+      }
+    ],
+    "SchemaMismatch": [
+      {
+        "type": "SchemaMismatch",
+        "severity": "HIGH",
+        "component": "test_panel2_comprehensive.py",
+        "description": "Schema mismatch: KeyError: 'OrderStatus' - Schema mismatch in DTC message",
+        "recommendation": "Verify DTC message schema matches expected format",
+        "auto_fix": false
+      }
+    ],
+    "DatabaseIssue": [
+      {
+        "type": "DatabaseIssue",
+        "severity": "CRITICAL",
+        "component": "Database",
+        "description": "DB check failed: Database corruption detected",
+        "recommendation": "Run database migration or VACUUM command",
+        "auto_fix": false
+      }
+    ]
+  },
+  "patches": [
+    {
+      "file": "core/app_manager.py",
+      "line": 156,
+      "context_before": [
+        "    def _setup_cross_panel_linkage(self, outer: QtWidgets.QVBoxLayout) -> None:",
+        "        \"\"\"",
+        "        Wire cross-panel communication and add panels to layout."
+      ],
+      "patch": ["        # TODO: Connect on_order_update from DTC"],
+      "context_after": [
+        "        \"\"\"",
+        "        # Single source of truth for timeframe",
+        "        self.current_tf: str = \"LIVE\"",
+        "",
+        "        # Link Panel1 <-> Panel3 (existing)"
+      ],
+      "description": "Add connection for on_order_update"
+    }
+  ],
+  "recommendations": [
+    "Signals: 1 broken signal connections. Review AppManager._setup_cross_panel_linkage() and reconnect signals.",
+    "Performance: 1 timing violations detected. Consider optimizing hot paths and reducing UI blocking operations.",
+    "Database: 1 consistency issues. Run PRAGMA integrity_check and consider rebuilding database."
+  ]
+}

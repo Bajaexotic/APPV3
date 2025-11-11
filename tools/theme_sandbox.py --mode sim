@@ -1,0 +1,106 @@
+from __future__ import annotations
+
+import sys
+from typing import List
+from PyQt6 import QtWidgets, QtCore
+
+from config.theme import THEME, switch_theme
+from utils.theme_helpers import apply_theme, style_card, refresh_theme_all
+
+
+class ThemeSandbox(QtWidgets.QMainWindow):
+    def __init__(self) -> None:
+        super().__init__()
+        self.setWindowTitle("APPSIERRA Theme Sandbox")
+        self.setMinimumSize(900, 600)
+
+        central = QtWidgets.QWidget(self)
+        self.setCentralWidget(central)
+        root = QtWidgets.QVBoxLayout(central)
+        root.setContentsMargins(12, 12, 12, 12)
+        root.setSpacing(10)
+
+        # Controls row
+        ctrl = QtWidgets.QHBoxLayout()
+        self.btn_debug = QtWidgets.QPushButton("DEBUG")
+        self.btn_sim = QtWidgets.QPushButton("SIM")
+        self.btn_live = QtWidgets.QPushButton("LIVE")
+        for b in (self.btn_debug, self.btn_sim, self.btn_live):
+            b.setCursor(QtCore.Qt.CursorShape.PointingHandCursor)
+        ctrl.addWidget(self.btn_debug)
+        ctrl.addWidget(self.btn_sim)
+        ctrl.addWidget(self.btn_live)
+        ctrl.addStretch(1)
+
+        self.status_lbl = QtWidgets.QLabel("Ready")
+        ctrl.addWidget(self.status_lbl)
+        root.addLayout(ctrl)
+
+        # Sample cards grid
+        grid = QtWidgets.QGridLayout()
+        grid.setSpacing(10)
+        self.cards: List[QtWidgets.QFrame] = []
+        titles = ["Balance", "PnL", "Delta", "VWAP", "Session High", "Session Low"]
+        for i, title in enumerate(titles):
+            card = QtWidgets.QFrame()
+            card.setObjectName("Card")
+            v = QtWidgets.QVBoxLayout(card)
+            v.setContentsMargins(12, 10, 12, 10)
+            v.setSpacing(6)
+            t = QtWidgets.QLabel(title)
+            val = QtWidgets.QLabel("—")
+            t.setAlignment(QtCore.Qt.AlignmentFlag.AlignCenter)
+            val.setAlignment(QtCore.Qt.AlignmentFlag.AlignCenter)
+            v.addWidget(t)
+            v.addWidget(val, 1)
+            r, c = divmod(i, 3)
+            grid.addWidget(card, r, c)
+            self.cards.append(card)
+        root.addLayout(grid, 1)
+
+        # THEME dump
+        self.theme_dump = QtWidgets.QPlainTextEdit()
+        self.theme_dump.setReadOnly(True)
+        self.theme_dump.setMaximumBlockCount(1000)
+        root.addWidget(self.theme_dump, 1)
+
+        # Wire events
+        self.btn_debug.clicked.connect(lambda: self.apply_mode("DEBUG"))
+        self.btn_sim.clicked.connect(lambda: self.apply_mode("SIM"))
+        self.btn_live.clicked.connect(lambda: self.apply_mode("LIVE"))
+
+        # Initial paint
+        self.apply_mode("LIVE")
+
+    def _restyle_cards(self) -> None:
+        for card in self.cards:
+            style_card(card)
+
+    def _dump_theme(self) -> None:
+        lines = ["THEME tokens:"]
+        for k in sorted(THEME.keys()):
+            lines.append(f"  {k}: {THEME[k]}")
+        self.theme_dump.setPlainText("\n".join(lines))
+
+    def apply_mode(self, mode: str) -> None:
+        """Apply DEBUG, SIM, or LIVE theme"""
+        app = QtWidgets.QApplication.instance()
+        switch_theme(mode.lower())
+        status = f"Theme: {mode}"
+
+        if app is not None:
+            refresh_theme_all(app)
+        self._restyle_cards()
+        self._dump_theme()
+        self.status_lbl.setText(status)
+
+
+def main() -> int:
+    app = QtWidgets.QApplication(sys.argv)
+    win = ThemeSandbox()
+    win.show()
+    return app.exec()
+
+
+if __name__ == "__main__":
+    sys.exit(main())

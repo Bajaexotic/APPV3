@@ -1,0 +1,78 @@
+================================================================================
+FINDING: Balance Changes on Position OPEN, Not Just CLOSE
+================================================================================
+
+Observed:
+- 1 contract: balance changes by $5 when position opens
+- 2 contracts: balance changes by $7 when position opens
+- The balance SHOULD ONLY change when position closes!
+
+This means record_closed_trade() is being called when the position OPENS,
+not when it CLOSES.
+
+================================================================================
+DEBUG OUTPUT YOU NEED TO PROVIDE
+================================================================================
+
+Run the app with 1 contract and DO THIS:
+
+1. OPEN a long position (1 contract)
+2. COPY the console output that shows:
+   - [DEBUG panel2.on_order_update] POSITION OPENING
+   - [DEBUG ENTRY] record_closed_trade() called
+   - The parameters passed
+3. CLOSE the position
+4. COPY the console output that shows the close
+
+Then send me the FULL console output showing these sequences!
+
+The output should look like:
+
+[DEBUG panel2.on_order_update] POSITION OPENING:
+  Position was flat, seeding from fill
+  qty=1, price=6837.5, is_long=True
+  ✓ Early return - will NOT call notify_trade_closed()
+
+[Maybe some other messages]
+
+[DEBUG ENTRY] record_closed_trade() called  ← THIS IS THE KEY QUESTION
+  symbol=MES
+  realized_pnl=...
+  exit_price=...
+
+[Position closes]
+
+We need to see:
+1. WHEN is record_closed_trade() called?
+2. WHAT parameters is it called with?
+3. Is it called TWICE (on open AND close)?
+4. Is exit_price provided or is it None?
+
+================================================================================
+WHAT THIS WILL REVEAL
+================================================================================
+
+Based on the output, we can determine:
+
+Scenario A: record_closed_trade() called ONCE on close
+  ✓ This is correct behavior
+  ✓ The $5 change must be from something else (need to investigate)
+
+Scenario B: record_closed_trade() called TWICE (on open AND close)
+  ✗ This is the bug!
+  ✗ First call happens when position opens with realized_pnl=0 (or some value)
+  ✗ Second call happens when position closes with real PnL
+  ✗ Balance updates twice, causing the $5-$7 change on open
+
+Scenario C: record_closed_trade() called on open with exit_price=entry_price
+  ✗ This would cause realized_pnl = (entry_price - entry_price) * qty = 0
+  ✗ But commissions still get subtracted: 0 PnL - $5 commissions = -$5
+  ✗ That explains the $5 balance change!
+
+================================================================================
+NEXT STEP
+================================================================================
+
+Trade 1 contract and send me the FULL console output from open to close.
+
+That will tell us exactly what's happening and how to fix it!

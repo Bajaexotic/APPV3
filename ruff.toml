@@ -1,0 +1,273 @@
+# ============================================================================
+# Ruff Configuration for APPSIERRA
+# ============================================================================
+# Ruff is an extremely fast Python linter and formatter, written in Rust.
+# Documentation: https://docs.astral.sh/ruff/
+# ============================================================================
+
+# Python version target
+target-version = "py311"
+
+# Line length (PEP 8 recommends 79, but 120 is common for modern codebases)
+line-length = 120
+
+# ============================================================================
+# File Discovery
+# ============================================================================
+
+# Directories to include
+include = ["*.py", "*.pyi", "**/pyproject.toml"]
+
+# Directories to exclude
+exclude = [
+    ".git",
+    ".venv",
+    "venv",
+    "__pycache__",
+    "*.pyc",
+    ".pytest_cache",
+    ".ruff_cache",
+    "build",
+    "dist",
+    "*.egg-info",
+    ".mypy_cache",
+    ".tox",
+    "node_modules",
+]
+
+# ============================================================================
+# Linting Rules
+# ============================================================================
+
+[lint]
+# Enable specific rule categories
+# Full list: https://docs.astral.sh/ruff/rules/
+select = [
+    # Pyflakes (F)
+    "F",        # Pyflakes errors (undefined names, unused imports, etc.)
+
+    # pycodestyle (E, W)
+    "E",        # Error rules (code style violations)
+    "W",        # Warning rules (code style warnings)
+
+    # isort (I)
+    "I",        # Import sorting and organization
+
+    # pydocstyle (D)
+    "D",        # Docstring conventions
+
+    # pyupgrade (UP)
+    "UP",       # Upgrade syntax for newer Python versions
+
+    # pep8-naming (N)
+    "N",        # PEP 8 naming conventions
+
+    # flake8-bugbear (B)
+    "B",        # Likely bugs and design problems
+
+    # flake8-comprehensions (C4)
+    "C4",       # Simplify list/dict/set comprehensions
+
+    # flake8-debugger (T10)
+    "T10",      # Detect debugger imports and calls
+
+    # flake8-simplify (SIM)
+    "SIM",      # Simplify code patterns
+
+    # flake8-type-checking (TCH)
+    "TCH",      # Move imports only used for type checking into TYPE_CHECKING blocks
+
+    # flake8-unused-arguments (ARG)
+    "ARG",      # Detect unused function arguments
+
+    # flake8-use-pathlib (PTH)
+    "PTH",      # Prefer pathlib over os.path
+
+    # Pylint (PL)
+    "PL",       # Pylint rules (convention, errors, warnings, refactoring)
+
+    # Ruff-specific rules (RUF)
+    "RUF",      # Ruff-specific rules
+]
+
+# Rules to ignore
+ignore = [
+    # Docstring rules (too strict for existing codebase)
+    "D100",     # Missing docstring in public module
+    "D101",     # Missing docstring in public class
+    "D102",     # Missing docstring in public method
+    "D103",     # Missing docstring in public function
+    "D104",     # Missing docstring in public package
+    "D105",     # Missing docstring in magic method
+    "D107",     # Missing docstring in __init__
+    "D203",     # 1 blank line required before class docstring (conflicts with D211)
+    "D213",     # Multi-line docstring summary should start at second line (conflicts with D212)
+
+    # Overly strict rules
+    "E501",     # Line too long (handled by formatter)
+    "PLR0913",  # Too many arguments to function call
+    "PLR0912",  # Too many branches
+    "PLR0915",  # Too many statements
+    "PLR2004",  # Magic value used in comparison
+    "SIM102",   # Use a single if statement instead of nested if statements (sometimes nested is clearer)
+    "SIM108",   # Use ternary operator instead of if-else block (sometimes if-else is clearer)
+
+    # Naming conventions (be flexible with existing code)
+    "N802",     # Function name should be lowercase (allow camelCase for Qt methods)
+    "N803",     # Argument name should be lowercase (allow Qt-style args)
+    "N806",     # Variable in function should be lowercase (allow Qt conventions)
+
+    # Type checking (gradual adoption)
+    "TCH001",   # Move application import into TYPE_CHECKING block
+    "TCH002",   # Move third-party import into TYPE_CHECKING block
+    "TCH003",   # Move standard library import into TYPE_CHECKING block
+
+    # Too strict for PyQt6 code
+    "ARG001",   # Unused function argument (Qt callbacks often have unused args)
+    "ARG002",   # Unused method argument
+
+    # Allow print statements (used for user-facing output)
+    "T201",     # print() found
+]
+
+# Allow autofix for specific rules
+fixable = [
+    "F",        # Pyflakes
+    "E",        # pycodestyle errors
+    "W",        # pycodestyle warnings
+    "I",        # isort
+    "UP",       # pyupgrade
+    "C4",       # flake8-comprehensions
+    "SIM",      # flake8-simplify
+    "RUF",      # Ruff-specific
+]
+
+# Never autofix these rules
+unfixable = [
+    "F401",     # Unused imports (manual review needed)
+    "F841",     # Unused variable (manual review needed)
+]
+
+# Allow unused variables when they start with underscore
+dummy-variable-rgx = "^(_+|(_+[a-zA-Z0-9_]*[a-zA-Z0-9]+?))$"
+
+# ============================================================================
+# Per-file ignores
+# ============================================================================
+
+[lint.per-file-ignores]
+# Test files
+"tests/**/*.py" = [
+    "D",        # Don't require docstrings in tests
+    "PLR2004",  # Allow magic values in tests
+    "S101",     # Allow assert statements in tests
+]
+
+"test_*.py" = [
+    "D",        # Don't require docstrings in tests
+    "PLR2004",  # Allow magic values in tests
+    "S101",     # Allow assert statements in tests
+]
+
+# __init__.py files
+"__init__.py" = [
+    "F401",     # Allow unused imports (re-exports)
+    "D104",     # Don't require docstrings in __init__
+]
+
+# Config files
+"config/**/*.py" = [
+    "PLR0913",  # Allow many arguments in config
+]
+
+# Tools and scripts
+"tools/**/*.py" = [
+    "T201",     # Allow print in tools
+    "D",        # Don't require docstrings in tools
+]
+
+"cleanup_utils.py" = [
+    "T201",     # Allow print in utility scripts
+]
+
+# ============================================================================
+# Import Sorting (isort configuration)
+# ============================================================================
+
+[lint.isort]
+# Organize imports into sections
+section-order = [
+    "future",
+    "standard-library",
+    "third-party",
+    "first-party",
+    "local-folder",
+]
+
+# Known third-party packages
+known-third-party = ["PyQt6", "pyqtgraph"]
+
+# Known first-party packages
+known-first-party = ["config", "core", "panels", "services", "ui", "utils", "widgets"]
+
+# Force imports to be on separate lines
+force-single-line = false
+
+# Force sorted imports to appear before from imports
+force-sort-within-sections = true
+
+# Add a blank line after imports
+lines-after-imports = 2
+
+# ============================================================================
+# Docstring Conventions (pydocstyle configuration)
+# ============================================================================
+
+[lint.pydocstyle]
+# Use Google-style docstrings
+convention = "google"
+
+# ============================================================================
+# Pylint Configuration
+# ============================================================================
+
+[lint.pylint]
+# Maximum number of arguments for functions/methods
+max-args = 8
+
+# Maximum number of branches for functions/methods
+max-branches = 15
+
+# Maximum number of return statements
+max-returns = 8
+
+# Maximum number of statements in a function
+max-statements = 60
+
+# ============================================================================
+# McCabe Complexity
+# ============================================================================
+
+[lint.mccabe]
+# Maximum cyclomatic complexity
+max-complexity = 15
+
+# ============================================================================
+# Formatting (ruff format)
+# ============================================================================
+
+[format]
+# Use double quotes for strings
+quote-style = "double"
+
+# Use spaces instead of tabs for indentation
+indent-style = "space"
+
+# Normalize string quotes (consistent quoting)
+skip-magic-trailing-comma = false
+
+# Format docstrings
+docstring-code-format = true
+
+# Line ending style
+line-ending = "auto"

@@ -1,0 +1,25 @@
+{
+  "generated": "2025-11-08T22:09:02.500557",
+  "summary": {
+    "total_issues": 0,
+    "auto_fixable": 0,
+    "patches_generated": 0,
+    "severity_breakdown": {
+      "CRITICAL": 0,
+      "HIGH": 0,
+      "MEDIUM": 0,
+      "LOW": 0
+    }
+  },
+  "issues_by_type": {},
+  "patches": [],
+  "diagnostics_summary": {
+    "total_signals": 3,
+    "connected_signals": 3,
+    "timing_violations": 0,
+    "total_errors": 0,
+    "memory_snapshots": 3,
+    "db_check_failures": 0
+  },
+  "recommendations": []
+}

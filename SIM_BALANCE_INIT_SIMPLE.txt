@@ -1,0 +1,219 @@
+================================================================================
+                    SIM BALANCE INITIALIZATION - SIMPLE VIEW
+================================================================================
+
+WHEN YOU RUN: python main.py
+═════════════════════════════════════════════════════════════════════════════
+
+STEP 1: Python loads main.py
+        └─ Calls MainWindow()
+
+STEP 2: MainWindow.__init__() starts
+        └─ Calls _setup_state_manager()
+
+STEP 3: StateManager() is created
+        └─ Line 33: self.sim_balance = 10000.0
+
+           THIS IS THE MAGIC LINE!
+           ↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑
+
+STEP 4: StateManager registers globally
+        └─ Can be accessed from anywhere in the app
+           from core.app_state import get_state_manager
+           state = get_state_manager()
+           print(state.sim_balance)  # Will show 10000.0
+
+STEP 5: Panel1 is created and displays the balance
+        └─ Panel1.__init__()
+           └─ Shows $10,000.00 on screen
+
+STEP 6: SimBalanceManager loads (or creates) persistence file
+        └─ If data/sim_balance.json exists: load from it
+        └─ If file doesn't exist: use default 10000.0
+        └─ If new month: reset to 10000.0
+
+RESULT: Your app shows $10,000.00 balance
+════════════════════════════════════════════════════════════════════════════
+
+WHERE IS IT SET?
+════════════════════════════════════════════════════════════════════════════
+
+File:    core/state_manager.py
+Line:    33
+Code:    self.sim_balance: float = 10000.0
+
+This is a Python class variable being set during __init__()
+
+It's hardcoded in the source code, so it's always 10000.0 on startup.
+
+════════════════════════════════════════════════════════════════════════════
+
+THE COMPLETE INITIALIZATION SEQUENCE:
+════════════════════════════════════════════════════════════════════════════
+
+python main.py
+    │
+    ├─> QApplication created (PyQt6 app)
+    │
+    ├─> MainWindow() called
+    │   │
+    │   ├─> _setup_window()
+    │   │
+    │   ├─> _setup_state_manager()  ← THIS IS THE KEY ONE!
+    │   │   │
+    │   │   └─> StateManager()
+    │   │       │
+    │   │       ├─> self.sim_balance = 10000.0       ← SET HERE!
+    │   │       ├─> self.live_balance = 0.0
+    │   │       ├─> self.current_mode = "SIM"
+    │   │       └─> ... other stuff ...
+    │   │   │
+    │   │   └─> set_state_manager(self._state)
+    │   │       └─> Register globally for access
+    │   │
+    │   ├─> _setup_theme()
+    │   │
+    │   ├─> _build_ui()
+    │   │   │
+    │   │   ├─> Panel1.__init__()
+    │   │   │   │
+    │   │   │   ├─> _equity_points_sim = []
+    │   │   │   ├─> _equity_points_live = []
+    │   │   │   └─> Shows $10,000.00 on screen
+    │   │   │
+    │   │   └─> Panel2.__init__()
+    │   │       └─> Ready to receive DTC messages
+    │   │
+    │   ├─> _setup_reset_balance_hotkey()
+    │   │   └─> Registers Ctrl+Shift+R
+    │   │
+    │   └─> ... more setup ...
+    │
+    └─> win.show()
+        └─> Display the GUI with balance = $10,000.00
+
+════════════════════════════════════════════════════════════════════════════
+
+THREE SCENARIOS:
+════════════════════════════════════════════════════════════════════════════
+
+SCENARIO 1: First Time Running App
+───────────────────────────────────
+data/sim_balance.json    Does not exist yet
+
+StateManager.sim_balance = 10000.0
+SimBalanceManager._balance = 10000.0 (default)
+_check_monthly_reset()   No file, use default
+
+Result:  Shows $10,000.00 ✓
+
+
+SCENARIO 2: Close App and Reopen Same Month
+─────────────────────────────────────────────
+data/sim_balance.json    Exists with:
+                         {
+                           "balance": 10500.00,
+                           "last_reset_month": "2025-11"
+                         }
+
+StateManager.sim_balance = 10000.0 (initial)
+SimBalanceManager._load()  Load from JSON
+SimBalanceManager._balance = 10500.00 (from file)
+_check_monthly_reset()     Month same, no reset
+
+Result:  Shows $10,500.00 ✓ (your trades were saved!)
+
+
+SCENARIO 3: Close App and Reopen Next Month
+─────────────────────────────────────────────
+data/sim_balance.json    Exists with:
+                         {
+                           "balance": 10500.00,
+                           "last_reset_month": "2025-10"
+                         }
+
+StateManager.sim_balance = 10000.0 (initial)
+SimBalanceManager._load()  Load from JSON (10500.00)
+_check_monthly_reset()     Month changed!
+                          Reset to 10000.0
+                          Save new month
+
+Result:  Shows $10,000.00 ✓ (monthly reset!)
+
+════════════════════════════════════════════════════════════════════════════
+
+TIMELINE (From Button Click to Showing Balance):
+════════════════════════════════════════════════════════════════════════════
+
+T=0ms   User double-clicks app icon or runs "python main.py"
+
+T=50ms  Python interpreter starts
+        main.py begins executing
+        QtWidgets.QApplication created
+
+T=100ms MainWindow.__init__() starts
+        _setup_state_manager() called
+
+T=150ms StateManager.__init__() executes
+        self.sim_balance = 10000.0  ← BALANCE SET!
+
+T=200ms StateManager registers globally
+        SimBalanceManager checks for file
+
+T=250ms Panel1.__init__() runs
+        UI elements created
+
+T=300ms Panel1.lbl_balance.setText("$10,000.00")
+
+T=350ms win.show() displays the window
+
+T=400ms User sees $10,000.00 on screen! ✓
+
+════════════════════════════════════════════════════════════════════════════
+
+KEY TAKEAWAYS:
+════════════════════════════════════════════════════════════════════════════
+
+1. SIM balance is ALWAYS initialized to $10,000.00 in StateManager
+
+2. This happens AUTOMATICALLY when the app starts
+
+3. The value comes from a hardcoded line in state_manager.py:
+   self.sim_balance: float = 10000.0
+
+4. SimBalanceManager can OVERRIDE this if:
+   - A persistence file exists (data/sim_balance.json)
+   - Or if a new month started (auto-reset)
+
+5. The balance is shown in Panel1 label
+
+6. Everything happens in milliseconds, before user sees anything
+
+════════════════════════════════════════════════════════════════════════════
+
+TWO CLASS VARIABLES WITH THE SAME VALUE:
+════════════════════════════════════════════════════════════════════════════
+
+StateManager (state_manager.py:33):
+    self.sim_balance: float = 10000.0
+
+SimBalanceManager (sim_balance.py:20):
+    SIM_STARTING_BALANCE: float = 10000.00
+
+Both are 10000.0, so consistency is guaranteed.
+
+════════════════════════════════════════════════════════════════════════════
+
+THAT'S IT!
+════════════════════════════════════════════════════════════════════════════
+
+When you run your app, the sim_balance is automatically set to $10,000.00.
+Then it can be updated by:
+  - DTC balance messages (from Sierra Chart)
+  - Trade P&L (when trades close)
+  - Manual reset (Ctrl+Shift+R)
+  - Monthly auto-reset (next calendar month)
+
+All automatic. All tracked. All persisted.
+
+Ready to test! 🚀

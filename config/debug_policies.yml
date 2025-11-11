@@ -1,0 +1,326 @@
+# ==============================================================================
+# Error Policy Matrix for APPSIERRA Debug Subsystem
+# ==============================================================================
+#
+# This configuration defines how the system responds to different error types.
+# Each policy specifies:
+#   - recovery: Automatic recovery action
+#   - escalation: Whether to escalate (notify user/log with higher severity)
+#   - dump_snapshot: Whether to create diagnostic snapshot
+#   - max_retries: Maximum retry attempts (if applicable)
+#   - backoff_ms: Exponential backoff base in milliseconds
+#
+# Policy priorities:
+#   1. Safety first - never silently lose data
+#   2. User visibility - escalate user-facing issues
+#   3. Auto-recovery - retry transient failures
+#   4. Forensics - dump state for debugging
+# ==============================================================================
+
+# Network & Connectivity Errors
+network:
+  dtc_connection_drop:
+    recovery: "auto_retry"
+    max_retries: 3
+    backoff_ms: 2000
+    escalation: true
+    dump_snapshot: false
+    severity: "warn"
+    message: "DTC connection dropped, attempting reconnection"
+
+  dtc_connection_timeout:
+    recovery: "auto_retry"
+    max_retries: 5
+    backoff_ms: 1000
+    escalation: true
+    dump_snapshot: false
+    severity: "warn"
+    message: "DTC connection timeout, retrying"
+
+  socket_error:
+    recovery: "log_continue"
+    escalation: true
+    dump_snapshot: true
+    severity: "error"
+    message: "Socket error detected"
+
+  heartbeat_timeout:
+    recovery: "reconnect"
+    escalation: true
+    dump_snapshot: false
+    severity: "warn"
+    message: "Heartbeat timeout, reconnecting"
+
+# Data Processing Errors
+data:
+  json_parse_failure:
+    recovery: "skip_message"
+    escalation: true
+    dump_snapshot: true
+    severity: "error"
+    message: "Failed to parse JSON message, skipping"
+
+  schema_validation_error:
+    recovery: "skip_message"
+    escalation: true
+    dump_snapshot: true
+    severity: "error"
+    message: "Schema validation failed"
+
+  missing_required_field:
+    recovery: "use_default"
+    escalation: false
+    dump_snapshot: false
+    severity: "warn"
+    message: "Missing required field, using default value"
+
+  data_type_mismatch:
+    recovery: "coerce_type"
+    escalation: false
+    dump_snapshot: false
+    severity: "warn"
+    message: "Data type mismatch, attempting coercion"
+
+  cache_corruption:
+    recovery: "clear_cache"
+    escalation: true
+    dump_snapshot: true
+    severity: "error"
+    message: "Cache corruption detected, clearing"
+
+# Database Errors
+database:
+  connection_failed:
+    recovery: "auto_retry"
+    max_retries: 3
+    backoff_ms: 2000
+    escalation: true
+    dump_snapshot: true
+    severity: "error"
+    message: "Database connection failed"
+
+  query_timeout:
+    recovery: "cancel_retry"
+    max_retries: 2
+    backoff_ms: 1000
+    escalation: true
+    dump_snapshot: false
+    severity: "warn"
+    message: "Database query timeout"
+
+  transaction_deadlock:
+    recovery: "auto_retry"
+    max_retries: 3
+    backoff_ms: 500
+    escalation: false
+    dump_snapshot: false
+    severity: "warn"
+    message: "Transaction deadlock, retrying"
+
+  constraint_violation:
+    recovery: "log_skip"
+    escalation: true
+    dump_snapshot: true
+    severity: "error"
+    message: "Database constraint violation"
+
+# UI & Rendering Errors
+ui:
+  render_exception:
+    recovery: "continue"
+    escalation: false
+    dump_snapshot: false
+    severity: "warn"
+    message: "UI render exception, continuing"
+
+  widget_creation_failed:
+    recovery: "use_fallback"
+    escalation: true
+    dump_snapshot: true
+    severity: "error"
+    message: "Widget creation failed, using fallback"
+
+  signal_handler_exception:
+    recovery: "continue"
+    escalation: true
+    dump_snapshot: true
+    severity: "error"
+    message: "Signal handler exception"
+
+  theme_load_failed:
+    recovery: "use_default"
+    escalation: true
+    dump_snapshot: false
+    severity: "warn"
+    message: "Theme load failed, using default"
+
+  layout_error:
+    recovery: "reset_layout"
+    escalation: true
+    dump_snapshot: false
+    severity: "warn"
+    message: "Layout error, resetting to default"
+
+# File System Errors
+filesystem:
+  file_write_error:
+    recovery: "stop_logger"
+    escalation: true
+    dump_snapshot: true
+    severity: "error"
+    message: "File write error, stopping file logger"
+
+  file_read_error:
+    recovery: "use_default"
+    escalation: true
+    dump_snapshot: false
+    severity: "error"
+    message: "File read error"
+
+  permission_denied:
+    recovery: "skip"
+    escalation: true
+    dump_snapshot: true
+    severity: "error"
+    message: "Permission denied"
+
+  disk_full:
+    recovery: "stop_logger"
+    escalation: true
+    dump_snapshot: false
+    severity: "fatal"
+    message: "Disk full, stopping file operations"
+
+# Core System Errors
+core:
+  state_corruption:
+    recovery: "reset_state"
+    escalation: true
+    dump_snapshot: true
+    severity: "error"
+    message: "State corruption detected, resetting"
+
+  config_invalid:
+    recovery: "use_defaults"
+    escalation: true
+    dump_snapshot: true
+    severity: "error"
+    message: "Invalid configuration, using defaults"
+
+  initialization_failed:
+    recovery: "abort"
+    escalation: true
+    dump_snapshot: true
+    severity: "fatal"
+    message: "Initialization failed, aborting"
+
+  memory_limit_exceeded:
+    recovery: "clear_caches"
+    escalation: true
+    dump_snapshot: true
+    severity: "warn"
+    message: "Memory limit exceeded, clearing caches"
+
+  thread_deadlock:
+    recovery: "abort"
+    escalation: true
+    dump_snapshot: true
+    severity: "fatal"
+    message: "Thread deadlock detected"
+
+# Analytics & Calculation Errors
+analytics:
+  calculation_overflow:
+    recovery: "use_infinity"
+    escalation: false
+    dump_snapshot: false
+    severity: "warn"
+    message: "Calculation overflow"
+
+  division_by_zero:
+    recovery: "use_nan"
+    escalation: false
+    dump_snapshot: false
+    severity: "warn"
+    message: "Division by zero"
+
+  invalid_input_range:
+    recovery: "clamp_value"
+    escalation: false
+    dump_snapshot: false
+    severity: "warn"
+    message: "Input value out of range, clamping"
+
+  aggregation_error:
+    recovery: "skip_value"
+    escalation: true
+    dump_snapshot: false
+    severity: "warn"
+    message: "Aggregation error, skipping value"
+
+# Performance Issues
+performance:
+  slow_operation_detected:
+    recovery: "log_continue"
+    escalation: false
+    dump_snapshot: false
+    severity: "info"
+    message: "Slow operation detected"
+    threshold_ms: 1000
+
+  memory_leak_suspected:
+    recovery: "clear_caches"
+    escalation: true
+    dump_snapshot: true
+    severity: "warn"
+    message: "Possible memory leak detected"
+
+  high_cpu_usage:
+    recovery: "throttle"
+    escalation: true
+    dump_snapshot: false
+    severity: "warn"
+    message: "High CPU usage detected"
+    threshold_percent: 80
+
+  event_queue_overflow:
+    recovery: "drop_oldest"
+    escalation: true
+    dump_snapshot: true
+    severity: "warn"
+    message: "Event queue overflow, dropping oldest events"
+
+# Default Fallback Policy
+default:
+  unknown_error:
+    recovery: "log_continue"
+    escalation: true
+    dump_snapshot: true
+    severity: "error"
+    message: "Unknown error occurred"
+# ==============================================================================
+# Recovery Action Definitions
+# ==============================================================================
+#
+# auto_retry      - Automatically retry the operation with exponential backoff
+# skip_message    - Skip the current message/event and continue processing
+# use_default     - Use a default/fallback value
+# log_continue    - Log the error and continue execution
+# log_skip        - Log the error and skip the operation
+# continue        - Continue execution without special handling
+# reconnect       - Attempt to reconnect
+# reset_state     - Reset to known good state
+# clear_cache     - Clear affected cache
+# abort           - Abort the current operation/thread
+# stop_logger     - Stop file logging operations
+# use_fallback    - Use fallback component/implementation
+# coerce_type     - Attempt type coercion
+# clamp_value     - Clamp value to valid range
+# use_nan         - Use NaN as result
+# use_infinity    - Use infinity as result
+# cancel_retry    - Cancel current operation and retry
+# throttle        - Reduce operation rate
+# drop_oldest     - Remove oldest items from queue
+# reset_layout    - Reset UI layout to default
+#
+# ==============================================================================

@@ -1,0 +1,157 @@
+================================================================================
+APPSIERRA ROOT-CAUSE DIAGNOSIS - DIAGNOSTIC RESULTS
+================================================================================
+Date: November 7, 2025
+Status: CONFIRMED - Critical Issues Identified
+
+================================================================================
+DIAGNOSTIC FINDINGS
+================================================================================
+
+[CHECK #1] StateManager Method Implementation
+STATUS: CRITICAL FAILURE
+  update_balance(): [MISSING] ✗ BLOCKER
+  update_position(): [MISSING] ✗ BLOCKER
+  record_order(): [MISSING] ✗ BLOCKER
+
+IMPACT: These methods are CALLED by message_router.py (confirmed in CHECK #5)
+but don't exist in core/state_manager.py. This causes silent AttributeError
+exceptions when router tries to persist state.
+
+CONSEQUENCE: Application state never updates. Panels receive data via Blinker
+signals directly, but state_manager is empty, breaking any code that relies
+on persistent state access.
+
+---
+
+[CHECK #2] MessageRouter Instantiation in app_manager.py
+STATUS: CONFIRMED WIRING ISSUE
+  MessageRouter imported: [NO] ✗
+  MessageRouter instantiated: [NO] ✗
+  DTCClientJSON call: router=None ✗
+
+PROBLEM: Line 565 in app_manager.py shows:
+    self._dtc = DTCClientJSON(host=host, port=port, router=None)
+
+This means the message_router (which exists and works) is NEVER used. The
+router instance is never created and never passed to the DTC client.
+
+CONSEQUENCE: Even if StateManager had the right methods, they would never be
+called because the router dispatcher is disconnected.
+
+---
+
+[CHECK #3] Signal Connections in app_manager.py
+STATUS: WORKING ✓
+  signal_balance: [CONNECTED]
+  signal_position: [CONNECTED]
+  signal_order: [CONNECTED]
+
+GOOD NEWS: All three critical Blinker signals ARE properly wired in app_manager.
+This explains why you might be seeing some UI updates (via direct signal
+connections) despite the router not being used.
+
+---
+
+[CHECK #4] Panel Handler Methods
+STATUS: PARTIALLY WORKING
+  panel1.py: set_account_balance() [EXISTS] ✓
+  panel2.py: on_order_update() [EXISTS] ✓
+  panel2.py: on_position_update() [EXISTS] ✓
+  panel3.py: register_order_event() [MISSING] ✗
+
+The first 3 exist and can receive data. Panel3's handler is missing but may
+not be critical for live data (depends on your use case).
+
+---
+
+[CHECK #5] MessageRouter Calls to StateManager
+STATUS: BROKEN DEPENDENCY CHAIN
+  state.update_balance(): [CALLED] but method doesn't exist
+  state.update_position(): [CALLED] but method doesn't exist
+  state.record_order(): [CALLED] but method doesn't exist
+
+These calls happen in message_router.py but FAIL silently because the methods
+don't exist in StateManager. This is the root cause of state not persisting.
+
+---
+
+[CHECK #6] Debug Output in data_bridge.py
+STATUS: DEBUG INFRASTRUCTURE PRESENT ✓
+  Balance debug print: [YES]
+  Signal emission: [YES]
+  DEBUG_DATA check: [YES]
+
+The debug infrastructure is in place. Messages CAN be debugged if you run:
+    export DEBUG_DATA=1
+    python main.py
+
+================================================================================
+ROOT CAUSE CONFIRMED
+================================================================================
+
+There are TWO INDEPENDENT issues blocking data flow:
+
+ISSUE #1: StateManager Missing Methods (CRITICAL)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Location: core/state_manager.py
+Problem: Methods called but not implemented
+Called from: message_router.py lines 105, 118, 128
+Impact: State never persists; router calls fail silently
+
+Solution: Add 3 methods to StateManager class
+
+---
+
+ISSUE #2: MessageRouter Never Used (MEDIUM)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Location: core/app_manager.py line 565
+Problem: Router=None; router never instantiated
+Impact: Router dispatcher never called even if StateManager had methods
+
+Solution: Create MessageRouter instance and pass to DTCClientJSON
+
+================================================================================
+WHY YOU'RE SEEING PARTIAL DATA
+================================================================================
+
+The UI APPEARS to get some data because:
+
+1. DTC messages arrive on socket ✓
+2. data_bridge parses them ✓
+3. Blinker signals fire directly to panels ✓ (app_manager connected them)
+4. Panel UI methods are called ✓ (signal connections work)
+5. Visual updates happen ✓
+
+BUT:
+
+1. Router is never called ✗
+2. StateManager methods never execute ✗
+3. App state is never populated ✗
+4. Any code relying on state.get("balance") returns None ✗
+
+Result: UI shows data momentarily (from signal callbacks) but no persistent
+state = inconsistent behavior when panels try to access historical state.
+
+================================================================================
+NEXT STEPS
+================================================================================
+
+1. IMMEDIATE FIX (10 minutes):
+   Add missing StateManager methods to core/state_manager.py
+   See: APPSIERRA_FIXES.md for exact code to add
+
+2. OPTIONAL FIX (5 minutes):
+   Wire MessageRouter to DTCClientJSON (redundant but correct)
+   This ensures state is updated even if Blinker signals break
+
+3. VERIFY FIX:
+   Run diagnostic again to confirm methods exist:
+   python -m pytest tests/test_state_manager.py
+
+4. DEBUG OUTPUT:
+   Enable logging to watch data flow:
+   export DEBUG_DATA=1
+   python main.py
+
+================================================================================

@@ -1,0 +1,111 @@
+================================================================================
+ACTUALLY... PNL IS CALCULATING CORRECTLY!
+================================================================================
+
+Looking at the logs more carefully:
+
+-147→[INFO] balance.updated.SIM: 9,947.50 (pnl=-7.50)  ← PnL is -$7.50!
+-147→[INFO] trade.recorded: F.US.MESZ25 | PnL=-7.50 | Mode=SIM | ID=28
+
+THE PnL IS BEING CALCULATED! It shows -7.50, which is correct!
+
+================================================================================
+THE REAL ISSUE: Balance changing on OPEN
+================================================================================
+
+Look at this sequence:
+
+1. [Position opened with qty=2, price=6837]
+   ↓
+2. [balance.updated.SIM: 9,962.50 (pnl=+0.00)]
+   ↓
+3. [Position closed]
+   ↓
+4. [balance.updated.SIM: 9,955.00 (pnl=-7.50)]
+
+The balance is changing when the position OPENS (step 2 with pnl=+0.00), which it shouldn't!
+
+This suggests record_closed_trade() is being called TWICE:
+- Once when the position opens (wrong!)
+- Once when the position closes (correct, with real PnL)
+
+================================================================================
+HYPOTHESIS
+================================================================================
+
+When a position opens, something is calling record_closed_trade() with:
+- realized_pnl=+0.00 (because exit_price == entry_price, position just opened)
+- balance updates with 0 PnL (but still updates the $10k balance)
+
+Then when position closes, it's called again with the real PnL.
+
+This causes the "balance changed by $7 when opened" symptom!
+
+================================================================================
+ROOT CAUSE TO INVESTIGATE
+================================================================================
+
+Need to check:
+1. Is on_position_update() being called twice in quick succession?
+2. Is panel2.notify_trade_closed() being called on the OPENING order fill?
+3. Is there duplicate message routing?
+
+The logs show:
+[panel2] Seeded position from fill: qty=2, price=6837
+[services.trade_service] balance.updated.SIM: 9,962.50 (pnl=+0.00)
+
+This happens at the EXACT SAME TIMESTAMP, which means notify_trade_closed() is being
+called immediately after the position opens.
+
+================================================================================
+WHERE TO LOOK
+================================================================================
+
+In panels/panel2.py on_order_update():
+
+Line 260-265:
+    if qty > 0 and price is not None:
+        # Only seed if we're currently flat
+        if not (self.entry_qty and ...):
+            self.set_position(qty, price, is_long)
+            log.info(f"[panel2] Seeded position from fill...")
+            return  # ← This should prevent notify_trade_closed()
+
+But the balance IS updating, so notify_trade_closed() IS being called somehow!
+
+Possible causes:
+1. Multiple fills arriving at exact same time
+2. Message router calling notify_trade_closed() incorrectly
+3. Another code path also calling record_closed_trade()
+
+================================================================================
+THE FIX
+================================================================================
+
+We need to add a guard in record_closed_trade() to skip trades that:
+- Have realized_pnl = 0.00 AND
+- exit_price is missing or == entry_price AND
+- Are probably position opens, not closes
+
+OR
+
+We need to prevent notify_trade_closed() from being called when a position opens
+(which should already be happening at line 265).
+
+================================================================================
+BOTTOM LINE
+================================================================================
+
+PnL calculation IS working! The issue is the balance is updating when it shouldn't
+(on position open instead of just on close).
+
+The $7 balance change on open is probably the commission that was deducted
+(COMM_PER_CONTRACT * qty = some amount that looks like $7).
+
+So the real issues are:
+1. Commissions are being applied on OPEN, not just on CLOSE
+2. Or record_closed_trade() is being called twice (on open AND close)
+3. Or notify_trade_closed() is being called incorrectly for opening fills
+
+Next step: Add more debug logging to track whether record_closed_trade() is being
+called multiple times per trade cycle.

@@ -1,0 +1,4 @@
+{
+  "POSTGRES_DSN": "postgresql://appuser:subaru191@127.0.0.1:5432/appdb",
+  "TRADING_MODE": "SIM"
+}

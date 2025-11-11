@@ -1,0 +1,80 @@
+    :# -------------------- Panel1 Module (start) -----------------------------------
+   1:from __future__ import annotations
+   2:import sys
+   3:print(f"[Panel1] Python executable: {sys.executable}")
+   4:print(f"[Panel1] Python version: {sys.version}")
+   5:print("[Panel1] ========== MODULE LOADING ==========")
+   6:
+   7:from typing import Optional, Iterable, Tuple, Any, Sequence
+   8:from PyQt6 import QtCore, QtWidgets, QtGui
+   9:
+  10:# -------------------- Imports & Fallbacks ------------------------------------
+  11:
+  12:try:
+  13:    import pyqtgraph as pg  # type: ignore
+  14:    print(f"[Panel1] pyqtgraph imported successfully: {pg}")  # DEBUG
+  15:except Exception as e:
+  16:    print(f"[Panel1] ERROR importing pyqtgraph: {e}")  # DEBUG
+  17:    import traceback
+  18:    traceback.print_exc()
+  19:    pg = None  # safe fallback: app still runs, graph disabled
+  20:
+  21:from config.theme import THEME, ColorTheme
+  22:from utils.ui_helpers import centered_row
+  23:
+  24:from widgets.timeframe_pills import InvestingTimeframePills  # type: ignore
+  25:
+  26:from widgets.connection_icon import ConnectionIcon  # type: ignore
+  27:
+  28:# -------------------- Adaptive Masked Frame (start) ---------------------------
+  29:class MaskedFrame(QtWidgets.QFrame):
+  30:    """
+  31:    A QFrame that paints a theme background and automatically masks itself
+  32:    to the painted geometry. Children (like PlotWidget) are clipped to this shape.
+  33:    """
+  34:
+  35:    def _shape_path(self) -> QtGui.QPainterPath:
+  36:        """Define the shape. Change this to any geometry later (waves, polygons…)."""
+  37:        rect = QtCore.QRectF(self.rect())  # ✅ convert QRect → QRectF
+  38:        r = float(THEME.get("panel_radius", 10))
+  39:        path = QtGui.QPainterPath()
+  40:        path.addRoundedRect(rect, r, r)
+  41:        return path
+  42:
+  43:    def paintEvent(self, event: QtGui.QPaintEvent) -> None:
+  44:        painter = QtGui.QPainter(self)
+  45:        painter.setRenderHint(QtGui.QPainter.RenderHint.Antialiasing)
+  46:
+  47:        # 1) Paint the background + border using THEME
+  48:        path = self._shape_path()
+  49:        painter.setBrush(QtGui.QBrush(QtGui.QColor(THEME.get("bg_secondary", "#111827"))))
+  50:        painter.setPen(QtGui.QPen(QtGui.QColor(THEME.get("border", "#2A3142"))))
+  51:        painter.drawPath(path)
+  52:
+  53:        # 2) Clip this widget (and its children) to that exact shape
+  54:        region = QtGui.QRegion(path.toFillPolygon().toPolygon())
+  55:        self.setMask(region)
+  56:
+  57:        # ✅ Explicitly end painter to avoid QBackingStore warnings
+  58:        painter.end()
+  59:
+  60:        # Continue normal painting
+  61:        super().paintEvent(event)
+  62:# -------------------- Adaptive Masked Frame (end) -----------------------------
+  63:
+  64:# -------------------- Small helpers (start) -----------------------------------
+  65:def _pnl_color(up: Optional[bool]) -> str:
+  66:    """Return a direction color from theme (green/red/neutral)."""
+  67:    if up is None:
+  68:        return str(THEME.get("pnl_neu_color", THEME.get("ink_mid", "#9CA3AF")))
+  69:    return ColorTheme.pnl_color_from_direction(bool(up))
+  70:
+  71:def _fmt_money(v: Optional[float]) -> str:
+  72:    if v is None:
+  73:        return "—"
+  74:    try:
+  75:        return f"${float(v):,.2f}"
+  76:    except Exception:
+  77:        return "—"
+  78:
+  79:def _fmt_pct(p: Optional[float]) -> str:

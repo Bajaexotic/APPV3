@@ -1,0 +1,303 @@
+================================================================================
+COMPREHENSIVE PNL DEBUG INSTRUMENTATION - CHANGES SUMMARY
+================================================================================
+
+This document describes all the debug logging added to trace PnL calculations.
+
+================================================================================
+FILE 1: services/trade_service.py
+================================================================================
+
+Function: record_closed_trade() [Line 108]
+
+Added debug output at these checkpoints:
+
+[DEBUG ENTRY] - Line 142-148
+  ├─ symbol
+  ├─ realized_pnl (input parameter)
+  ├─ exit_price (input parameter)
+  └─ pos_info (position details)
+
+[DEBUG] Imports - Line 153-157
+  └─ Verifies get_session and TradeRecord imported
+
+[DEBUG STEP 1] - Line 167-170
+  ├─ entry_price extraction
+  ├─ qty extraction
+  ├─ entry_time extraction
+  └─ account extraction
+
+[DEBUG STEP 2A] - Line 175-178 (PnL calculated)
+  ├─ Formula shown: (exit_price - entry_price) * qty
+  ├─ Values plugged in
+  └─ Result (realized_pnl)
+
+[DEBUG STEP 2B] - Line 180-182 (PnL NOT calculated)
+  ├─ Flags why calculation was skipped
+  ├─ realized_pnl provided check
+  └─ exit_price provided check
+
+[DEBUG STEP 3] - Line 191
+  └─ mode={mode} (SIM or LIVE detected)
+
+[DEBUG STEP 4] - Line 194-197 (Balance update check)
+  ├─ state_manager exists: {bool}
+  ├─ realized_pnl is not None: {bool}
+  └─ realized_pnl value: {float}
+
+[TRADE CLOSED] - Line 205-214 (Trade summary)
+  ├─ Emoji indicator: 📈 (profit), 📉 (loss), ➡️ (breakeven)
+  ├─ Symbol and mode
+  ├─ Entry/Exit prices
+  ├─ Quantity
+  ├─ Calculation formula with actual numbers
+  ├─ P&L with sign
+  ├─ Balance before and after
+  └─ Decorative separator bars
+
+[DEBUG STEP 5] - Line 226-236 (TradeRecord creation)
+  ├─ symbol
+  ├─ qty
+  ├─ mode
+  ├─ entry_price
+  ├─ entry_time
+  ├─ exit_price
+  ├─ exit_time
+  ├─ realized_pnl (with conversion check)
+  ├─ is_closed
+  └─ account
+
+[DEBUG STEP 6-8] - Line 260-271 (Database operations)
+  ├─ STEP 6: TradeRecord creation
+  ├─ STEP 7: Session add and commit
+  ├─ STEP 8: Verification of saved data
+  │   ├─ Trade ID
+  │   ├─ Symbol
+  │   ├─ Realized PnL in DB (CRITICAL: must match calculated)
+  │   ├─ Mode in DB
+  │   └─ Is Closed flag
+  └─ log.info() call
+
+[DEBUG STEP 9] - Line 277-287 (Trade summary)
+  ├─ Success message
+  ├─ Trade ID
+  ├─ Mode
+  ├─ Entry/Exit prices
+  ├─ Quantity
+  ├─ Realized P&L
+  ├─ New balance
+  └─ Decorative separator bars
+
+[DEBUG ERROR] - Line 291-299 (Exception handling)
+  ├─ Exception message
+  ├─ Exception type
+  ├─ Full traceback
+  └─ Logged to app.log
+
+FIXED BUG: Line 187
+  Before: log.info(f"balance.updated.{mode}", balance=new_balance, pnl=realized_pnl)
+  After:  log.info(f"balance.updated.{mode}: {new_balance:,.2f} (pnl={realized_pnl:+,.2f})")
+  Reason: Logger doesn't support keyword arguments
+
+================================================================================
+FILE 2: services/stats_service.py
+================================================================================
+
+Function: compute_trading_stats_for_timeframe() [Line 46]
+
+Added debug output at these checkpoints:
+
+[DEBUG STATS] Function entry - Line 56-57
+  ├─ timeframe={tf}
+  └─ mode={mode}
+
+[DEBUG STATS] Imports - Line 66-68
+  └─ Verifies successful import of database and calculation modules
+
+[DEBUG STATS] Query start - Line 72
+  └─ Timeframe range (start date)
+
+[DEBUG STATS] Mode detection - Line 81-84
+  ├─ Mode detected from state manager
+  └─ Fallback message if detection fails
+
+[DEBUG STATS] Final mode filter - Line 86
+  └─ mode={mode} (Final value to be used in query)
+
+[DEBUG STATS] Database session - Line 95
+  └─ Opening session for query
+
+[DEBUG STATS] Query results - Line 109
+  ├─ Number of trades found
+  ├─ Timeframe
+  └─ Mode
+
+[DEBUG STATS] No trades warning - Line 111-112
+  └─ Alerts if no trades found (returns empty stats)
+
+[DEBUG STATS] Per-trade detail - Line 115-118
+  ├─ Trade index
+  ├─ Symbol
+  ├─ PnL value from database
+  ├─ Exit time
+  └─ "Added to PnL list" flag
+
+[DEBUG STATS] Query complete - Line 131-133
+  ├─ Total PnL values collected
+  └─ PnL list (array of all PnL values from trades)
+
+[DEBUG STATS] Calculation summary - Line 189-197
+  ├─ Total PnL (sum)
+  ├─ Wins count and sum
+  ├─ Losses count and sum
+  ├─ Hit rate (win %)
+  ├─ Max drawdown
+  ├─ Max run-up
+  ├─ Expectancy
+  └─ Profit factor
+
+[DEBUG STATS] Return complete - Line 222-225
+  ├─ Number of metrics in result dict
+  ├─ Total PnL (formatted string version)
+  ├─ Trade count
+  └─ Decorative separator bars
+
+================================================================================
+FILE 3: panels/panel3.py
+================================================================================
+
+Function: _load_metrics_for_timeframe() [Line 283]
+
+NOTE: Panel 3 ALREADY HAD comprehensive debug logging in place!
+
+Existing debug checkpoints (Line 288-339):
+
+[DEBUG panel3._load_metrics_for_timeframe]
+  ├─ STEP 1: Called with tf={timeframe}
+  ├─ STEP 2: stats_service import status
+  ├─ STEP 3: State manager obtained
+  ├─ STEP 4: Mode detected
+  ├─ STEP 5: compute_trading_stats_for_timeframe() called
+  ├─ STEP 6: Payload received with metric keys listed
+  ├─ STEP 7: Trade count for mode/timeframe
+  ├─ STEP 8A: Trades found, calling update_metrics
+  ├─ STEP 8B: No trades found, empty state shown
+  ├─ STEP 9: update_metrics completed
+  ├─ STEP 10: Sharpe ratio value
+  ├─ STEP 11: Sharpe bar updated
+  ├─ STEP 12: Total PnL value
+  └─ ERROR: Exception handling with message
+
+================================================================================
+ADDITIONAL FILES MODIFIED
+================================================================================
+
+1. core/sim_balance.py - Line 23
+   FIXED: Relative path issue
+   Before: SIM_BALANCE_FILE: Path = Path("data/sim_balance.json")
+   After:  SIM_BALANCE_FILE: Path = Path(__file__).parent.parent / "data" / "sim_balance.json"
+   Reason: Relative path breaks depending on working directory
+
+2. DEBUG_PNL_GUIDE.md - NEW FILE
+   Comprehensive guide with:
+   ├─ Overview of debug flow
+   ├─ Detailed checkpoint explanations
+   ├─ Common issues & solutions
+   ├─ How to enable full debug output
+   ├─ Example of full trace
+   └─ Troubleshooting workflow
+
+3. QUICK_PNL_DEBUG.txt - NEW FILE
+   Quick reference guide with:
+   ├─ 6 main checkpoint summaries
+   ├─ Common issues (3 examples)
+   ├─ Debug settings
+   ├─ Expected console output
+   └─ Key files to check
+
+================================================================================
+DEBUG OUTPUT FLOW DIAGRAM
+================================================================================
+
+Position closes (qty → 0)
+         ↓
+record_closed_trade() [trade_service.py]
+  ├─ [DEBUG ENTRY]
+  ├─ [DEBUG STEP 1-2] Calculate or verify PnL
+  ├─ [DEBUG STEP 3] Detect mode
+  ├─ [DEBUG STEP 4] Update balance
+  ├─ [TRADE CLOSED] Summary
+  ├─ [DEBUG STEP 5-9] Save to database
+  └─ [DEBUG ERROR] If exception
+         ↓
+compute_trading_stats_for_timeframe() [stats_service.py]
+  ├─ [DEBUG STATS] Entry
+  ├─ [DEBUG STATS] Query database
+  ├─ [DEBUG STATS] Per-trade detail
+  ├─ [DEBUG STATS] Query results
+  └─ [DEBUG STATS] Calculation summary
+         ↓
+_load_metrics_for_timeframe() [panel3.py]
+  ├─ [DEBUG panel3._load_metrics_for_timeframe] STEP 1-7
+  ├─ [DEBUG panel3._load_metrics_for_timeframe] STEP 8-12
+  └─ update_metrics()
+         ↓
+Panel 3 UI displays metrics
+  ├─ Total PnL
+  ├─ Max Drawdown/Run-Up
+  ├─ Hit Rate
+  ├─ Trade count
+  └─ Other stats
+
+================================================================================
+HOW TO USE THESE DEBUG OUTPUTS
+================================================================================
+
+1. CLOSE A TRADE in the app
+2. LOOK AT CONSOLE OUTPUT for the debug messages above
+3. FOLLOW THE FLOW from [DEBUG ENTRY] to final display
+4. CHECK EACH CHECKPOINT for ✓ (working) or ✗ (issue)
+
+Example:
+  ✓ [DEBUG STEP 2A] PnL calculated = Good
+  ✗ [DEBUG STEP 2B] PnL NOT calculated = Stop, check exit_price
+  ✓ [DEBUG STEP 8] Trade committed = Good
+  ✗ [DEBUG STATS] Found 0 trades = Stop, check mode filter
+
+================================================================================
+TESTING CHECKLIST
+================================================================================
+
+Close a trade and verify:
+
+[ ] [DEBUG ENTRY] appears with correct symbol
+[ ] [DEBUG STEP 2A] shows PnL calculation (or Step 2B with explanation)
+[ ] [DEBUG STEP 3] shows mode (SIM or LIVE)
+[ ] [DEBUG STEP 4] shows balance update with values
+[ ] [TRADE CLOSED] shows entry, exit, qty, P&L, new balance
+[ ] [DEBUG STEP 8] ✓ Trade committed to database with ID
+[ ] [DEBUG STATS] Found trades in database
+[ ] [DEBUG STATS] PnL list shows the values
+[ ] [DEBUG STATS] Total PnL is the sum of PnL list
+[ ] [DEBUG panel3._load_metrics_for_timeframe] STEP 9: update_metrics completed
+[ ] Panel 3 displays Total PnL matching the calculated value
+
+If any are missing or show ✗, check that checkpoint in the debug output!
+
+================================================================================
+PERFORMANCE NOTES
+================================================================================
+
+All debug output uses print() statements (not logging to file).
+This means:
+  ✓ Console shows real-time output
+  ✓ No file I/O overhead
+  ✓ Can be easily disabled by removing print() calls later
+  ✓ Output goes to stdout/stderr in real-time
+
+To remove debug output later (after testing):
+  1. Search for "print(f\"[DEBUG" in each file
+  2. Delete or comment out those lines
+  3. Keep the actual logic code intact
+
+================================================================================

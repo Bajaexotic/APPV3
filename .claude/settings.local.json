@@ -1,0 +1,25 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(powershell -Command:*)",
+      "Bash(pip install:*)",
+      "Bash(python:*)",
+      "Bash(python3:*)",
+      "Bash(PYTHONIOENCODING=utf-8 python:*)",
+      "Bash(dir /B /S \"C:\\Users\\cgrah\\OneDrive\\Desktop\\APPSIERRA\")",
+      "Bash(tree /F /L 3 C:UserscgrahOneDriveDesktopAPPSIERRA 2)",
+      "Bash(nul)",
+      "Bash(dir /B:*)",
+      "Bash(sqlite3:*)",
+      "Bash(timeout 5 python:*)",
+      "Bash(timeout 10 python:*)",
+      "Bash(timeout 15 python:*)",
+      "Bash(timeout 30 python:*)",
+      "Bash(timeout 60 python:*)",
+      "Bash(timeout 20 python:*)",
+      "Bash(taskkill:*)"
+    ],
+    "deny": [],
+    "ask": []
+  }
+}

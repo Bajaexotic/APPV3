@@ -1,0 +1,52 @@
+{
+  "generated": "2025-11-08T21:45:00",
+  "connections": [
+    {
+      "signal": "set_trading_mode",
+      "sender": "AppManager.panel_balance",
+      "receiver": "Panel1",
+      "connected": true,
+      "type": "mock"
+    },
+    {
+      "signal": "set_account_balance",
+      "sender": "AppManager.panel_balance",
+      "receiver": "Panel1",
+      "connected": true,
+      "type": "mock"
+    },
+    {
+      "signal": "on_order_update",
+      "sender": "AppManager.panel_live",
+      "receiver": "Panel2",
+      "connected": true,
+      "type": "mock"
+    },
+    {
+      "signal": "on_position_update",
+      "sender": "AppManager.panel_live",
+      "receiver": "Panel2",
+      "connected": true,
+      "type": "mock"
+    },
+    {
+      "signal": "tradesChanged",
+      "sender": "AppManager.panel_live",
+      "receiver": "Panel3",
+      "connected": true,
+      "type": "mock"
+    },
+    {
+      "signal": "timeframeChanged",
+      "sender": "AppManager.panel_stats",
+      "receiver": "AppManager",
+      "connected": true,
+      "type": "mock"
+    }
+  ],
+  "summary": {
+    "total_connections": 6,
+    "connected": 6,
+    "broken": 0
+  }
+}
