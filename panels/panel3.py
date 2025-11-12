@@ -71,9 +71,7 @@ class Panel3(QtWidgets.QWidget, ThemeAwareMixin):
             state = get_state_manager()
             if state and hasattr(state, 'modeChanged'):
                 state.modeChanged.connect(self._on_mode_changed)
-                print(f"[DEBUG panel3.__init__] Connected to modeChanged signal")
         except Exception as e:
-            print(f"[DEBUG panel3.__init__] Failed to connect mode signal: {e}")
 
         # Apply current theme colors (in case theme was switched before this panel was created)
         self.refresh_theme()
@@ -134,7 +132,6 @@ class Panel3(QtWidgets.QWidget, ThemeAwareMixin):
 
     def _on_mode_changed(self, mode: str) -> None:
         """Called when trading mode switches (SIM <-> LIVE)"""
-        print(f"[DEBUG panel3._on_mode_changed] Mode changed to {mode}, reloading metrics")
         with contextlib.suppress(Exception):
             self._load_metrics_for_timeframe(self._tf)
 
@@ -301,12 +298,9 @@ class Panel3(QtWidgets.QWidget, ThemeAwareMixin):
         Prefers TradeRecord.exit_time; falls back to timestamp if absent.
         Filters by active trading mode (SIM/LIVE).
         """
-        print(f"[DEBUG panel3._load_metrics_for_timeframe] STEP 1: Called with tf={tf}")
         try:
             from services.stats_service import compute_trading_stats_for_timeframe
-            print(f"[DEBUG panel3._load_metrics_for_timeframe] STEP 2: stats_service imported successfully")
         except Exception as e:
-            print(f"[DEBUG panel3._load_metrics_for_timeframe] ERROR importing stats_service: {e}")
             return
 
         # Get active mode from state manager
@@ -314,51 +308,36 @@ class Panel3(QtWidgets.QWidget, ThemeAwareMixin):
         try:
             from core.app_state import get_state_manager
             state = get_state_manager()
-            print(f"[DEBUG panel3._load_metrics_for_timeframe] STEP 3: State manager obtained")
             # Use position_mode if there's an active position, otherwise current_mode
             mode = state.position_mode if state and state.has_active_position() else (state.current_mode if state else "SIM")
-            print(f"[DEBUG panel3._load_metrics_for_timeframe] STEP 4: Mode detected as {mode}")
         except Exception as e:
-            print(f"[DEBUG panel3._load_metrics_for_timeframe] WARNING: Failed to detect mode, using SIM default: {e}")
             mode = "SIM"  # Default fallback
 
-        print(f"[DEBUG panel3._load_metrics_for_timeframe] STEP 5: Calling compute_trading_stats_for_timeframe with tf={tf}, mode={mode}")
         payload = compute_trading_stats_for_timeframe(tf, mode=mode)
-        print(f"[DEBUG panel3._load_metrics_for_timeframe] STEP 6: compute_trading_stats_for_timeframe returned payload with keys: {list(payload.keys())}")
 
         # Check if we have any trades for this mode in this timeframe
         trades_count = payload.get("_trade_count", 0)
-        print(f"[DEBUG panel3._load_metrics_for_timeframe] STEP 7: Trades count for {mode} mode in {tf}: {trades_count}")
         if trades_count == 0:
-            print(f"[DEBUG panel3._load_metrics_for_timeframe] STEP 8: No trades found, calling display_empty_metrics")
             self.display_empty_metrics(mode, tf)
             return
 
-        print(f"[DEBUG panel3._load_metrics_for_timeframe] STEP 8: Trades found, calling update_metrics")
         self.update_metrics(payload)
-        print(f"[DEBUG panel3._load_metrics_for_timeframe] STEP 9: update_metrics completed")
 
         # Update Sharpe bar widget (Sharpe Ratio not in grid)
         try:
             sr = payload.get("Sharpe Ratio")
-            print(f"[DEBUG panel3._load_metrics_for_timeframe] STEP 10: Sharpe Ratio value: {sr}")
             if sr is not None:
                 self.sharpe_bar.set_value(float(sr))
-                print(f"[DEBUG panel3._load_metrics_for_timeframe] STEP 11: Sharpe bar updated")
         except Exception as e:
-            print(f"[DEBUG panel3._load_metrics_for_timeframe] WARNING: Failed to update Sharpe bar: {e}")
 
         # Color the timeframe pills based on total PnL sign
         try:
             total_val = float(payload.get("_total_pnl_value", 0.0))
-            print(f"[DEBUG panel3._load_metrics_for_timeframe] STEP 12: Total PnL value: {total_val}")
             up = True if total_val > 0 else False if total_val < 0 else None
             active_color = ColorTheme.pnl_color_from_direction(up)
             if hasattr(self.tf_pills, "set_active_color"):
                 self.tf_pills.set_active_color(active_color)
-                print(f"[DEBUG panel3._load_metrics_for_timeframe] STEP 13: Timeframe pills color updated")
         except Exception as e:
-            print(f"[DEBUG panel3._load_metrics_for_timeframe] WARNING: Failed to update pill colors: {e}")
 
     def display_empty_metrics(self, mode: str, tf: str) -> None:
         """Display empty state when no trades exist for mode in timeframe."""
@@ -406,29 +385,20 @@ class Panel3(QtWidgets.QWidget, ThemeAwareMixin):
         """Called when Panel 2 reports a closed trade.
         Refreshes statistics to show updated metrics.
         """
-        print(f"[DEBUG panel3.on_trade_closed] STEP 1: Trade closed notification received: {trade_payload}")
         try:
             from utils.logger import get_logger
             log = get_logger(__name__)
-            print(f"[DEBUG panel3.on_trade_closed] STEP 2: Logger obtained")
 
             # Refresh the metrics for current timeframe
-            print(f"[DEBUG panel3.on_trade_closed] STEP 3: Calling _load_metrics_for_timeframe with tf={self._tf}")
             self._load_metrics_for_timeframe(self._tf)
-            print(f"[DEBUG panel3.on_trade_closed] STEP 4: _load_metrics_for_timeframe returned")
 
             # Grab live data from Panel 2 if available
             if hasattr(self, "analyze_and_store_trade_snapshot"):
-                print(f"[DEBUG panel3.on_trade_closed] STEP 5: Calling analyze_and_store_trade_snapshot")
                 self.analyze_and_store_trade_snapshot()
-                print(f"[DEBUG panel3.on_trade_closed] STEP 6: analyze_and_store_trade_snapshot returned")
             else:
-                print(f"[DEBUG panel3.on_trade_closed] WARNING: analyze_and_store_trade_snapshot method not found")
 
-            print(f"[DEBUG panel3.on_trade_closed] STEP 7: Trade close handling completed successfully")
             log.debug(f"[panel3] Metrics refreshed on trade close")
         except Exception as e:
-            print(f"[DEBUG panel3.on_trade_closed] ERROR: {e}")
             try:
                 from utils.logger import get_logger
                 log = get_logger(__name__)

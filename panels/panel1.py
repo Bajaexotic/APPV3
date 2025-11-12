@@ -217,7 +217,6 @@ class Panel1(QtWidgets.QWidget):
         # Initialize session start time (used for PnL baseline calculation)
         import time
         self._session_start_time = time.time()
-        print(f"[DEBUG panel1.__init__] Session start time: {self._session_start_time}")
 
         # Schedule size check after UI is fully rendered
         QtCore.QTimer.singleShot(500, self._debug_sizes)
@@ -705,7 +704,6 @@ class Panel1(QtWidgets.QWidget):
 
     def _update_pnl_for_current_tf(self) -> None:
         """Calculate and display PnL for the current timeframe based on ACTUAL TRADES within the timeframe."""
-        print(f"\n[DEBUG panel1._update_pnl_for_current_tf] ENTRY: timeframe={self._tf}, mode={self._current_display_mode}")
 
         try:
             from datetime import datetime, timedelta, timezone
@@ -728,12 +726,10 @@ class Panel1(QtWidgets.QWidget):
             }
 
             if self._tf not in timeframe_ranges:
-                print(f"[DEBUG] Unknown timeframe: {self._tf}, using LIVE")
                 start_time, end_time = timeframe_ranges["LIVE"]
             else:
                 start_time, end_time = timeframe_ranges[self._tf]
 
-            print(f"[DEBUG] Timeframe {self._tf}: {start_time.isoformat()} - {end_time.isoformat()}")
 
             # Query trades for this timeframe
             with get_session() as session:
@@ -751,24 +747,18 @@ class Panel1(QtWidgets.QWidget):
                 baseline = 10000.0  # Standard SIM starting balance
                 pnl_pct = (total_pnl / baseline) * 100.0
 
-                print(f"[DEBUG] Found {len(trades)} closed trades in timeframe")
-                print(f"[DEBUG] Total PnL: ${total_pnl:+,.2f}")
-                print(f"[DEBUG] PnL %: {pnl_pct:+.2f}%")
 
                 pnl_up = total_pnl > 0 if abs(total_pnl) > 0.01 else None
             else:
-                print(f"[DEBUG] No trades found in timeframe {self._tf}")
                 total_pnl = 0.0
                 pnl_pct = 0.0
                 pnl_up = None
 
             # Update display
-            print(f"[DEBUG] Calling set_pnl_for_timeframe: value={total_pnl:+,.2f}, pct={pnl_pct:+.2f}%, up={pnl_up}")
             self.set_pnl_for_timeframe(pnl_value=total_pnl, pnl_pct=pnl_pct, up=pnl_up)
             log.debug(f"[panel1] PnL for {self._tf}: ${total_pnl:+.2f} ({pnl_pct:+.2f}%)")
 
         except Exception as e:
-            print(f"[DEBUG panel1._update_pnl_for_current_tf] EXCEPTION: {e}")
             import traceback
             traceback.print_exc()
             log.error(f"[panel1] Could not calculate PnL for timeframe {self._tf}: {e}")
@@ -834,7 +824,6 @@ class Panel1(QtWidgets.QWidget):
         Returns:
             List of (timestamp, balance) points for the equity curve
         """
-        print(f"[DEBUG Panel1._load_equity_curve_from_database] Loading equity curve for {mode}/{account}")
 
         try:
             from datetime import timezone
@@ -856,11 +845,9 @@ class Panel1(QtWidgets.QWidget):
                 )
 
                 trades = query.all()
-                print(f"[DEBUG Panel1._load_equity_curve_from_database] Found {len(trades)} trades for {mode}")
 
                 if not trades:
                     # No trades yet, return empty curve
-                    print(f"[DEBUG Panel1._load_equity_curve_from_database] No trades found, returning empty curve")
                     return []
 
                 # Build equity curve: cumulative sum of P&L
@@ -874,7 +861,6 @@ class Panel1(QtWidgets.QWidget):
                         equity_points.append((timestamp, cumulative_balance))
                         print(f"  Trade: {trade.symbol} | PnL={trade.realized_pnl:+.2f} | Balance=${cumulative_balance:,.2f} | Time={trade.exit_time}")
 
-                print(f"[DEBUG Panel1._load_equity_curve_from_database] Built curve with {len(equity_points)} points")
                 print(f"  Starting balance: ${starting_balance:,.2f}")
                 if equity_points:
                     print(f"  Ending balance: ${equity_points[-1][1]:,.2f}")
@@ -883,7 +869,6 @@ class Panel1(QtWidgets.QWidget):
 
         except Exception as e:
             log.error(f"[Panel1] Error loading equity curve from database: {e}", exc_info=True)
-            print(f"[DEBUG Panel1._load_equity_curve_from_database] ERROR: {e}")
             import traceback
             traceback.print_exc()
             return []
@@ -902,7 +887,6 @@ class Panel1(QtWidgets.QWidget):
         scope = (mode, account)
         if scope not in self._equity_curves:
             # Load from database on first access
-            print(f"[DEBUG Panel1._get_equity_curve] Curve not in cache, loading from database for {mode}/{account}")
             self._equity_curves[scope] = self._load_equity_curve_from_database(mode, account)
         return self._equity_curves[scope]
 
@@ -1092,22 +1076,16 @@ class Panel1(QtWidgets.QWidget):
         pnl_pct: Optional[float],
         up: Optional[bool],
     ) -> None:
-        print(f"[DEBUG panel1.set_pnl_for_timeframe] ENTRY: pnl_value={pnl_value}, pnl_pct={pnl_pct}, up={up}")
         self._pnl_val = pnl_value
         self._pnl_pct = pnl_pct
         self._pnl_up = up
-        print(f"[DEBUG panel1.set_pnl_for_timeframe] State vars set: _pnl_val={self._pnl_val}, _pnl_pct={self._pnl_pct}, _pnl_up={self._pnl_up}")
 
-        print(f"[DEBUG panel1.set_pnl_for_timeframe] Calling _apply_pnl_to_header()")
         self._apply_pnl_to_header()
 
-        print(f"[DEBUG panel1.set_pnl_for_timeframe] Calling _apply_pnl_to_pills({up})")
         self._apply_pnl_to_pills(up)
 
-        print(f"[DEBUG panel1.set_pnl_for_timeframe] Calling _recolor_endpoint()")
         self._recolor_endpoint()
 
-        print(f"[DEBUG panel1.set_pnl_for_timeframe] EXIT: SUCCESS")
 
     # --- filter helper for the active timeframe -----------------------------
     def _filtered_points_for_current_tf(self) -> list[tuple[float, float]]:
@@ -1123,20 +1101,16 @@ class Panel1(QtWidgets.QWidget):
         log.debug(f"[Panel1] Filtering points for {self.current_mode}/{self.current_account}: {len(pts)} total")
 
         if not pts:
-            print("[DEBUG HOVER] _filtered_points_for_current_tf: No points available")
             return []
 
         cfg = self._tf_configs.get(self._tf, {})
         window_sec = cfg.get("window_sec")
-        print(f"[DEBUG HOVER] _filtered_points_for_current_tf: tf={self._tf}, window_sec={window_sec}")
 
         if not window_sec:
-            print(f"[DEBUG HOVER] _filtered_points_for_current_tf: No window, returning all {len(pts)} points")
             return pts  # None or 0 -> no trim
 
         last_x = float(pts[-1][0])
         x_min = last_x - float(window_sec)
-        print(f"[DEBUG HOVER] _filtered_points_for_current_tf: last_x={last_x}, x_min={x_min}")
 
         i0 = 0
         for i, (x, _) in enumerate(pts):
@@ -1145,9 +1119,7 @@ class Panel1(QtWidgets.QWidget):
                 break
 
         filtered = pts[i0:]
-        print(f"[DEBUG HOVER] _filtered_points_for_current_tf: Filtered to {len(filtered)} points starting at index {i0}")
         if filtered:
-            print(f"[DEBUG HOVER] _filtered_points_for_current_tf: First point x={filtered[0][0]}, Last point x={filtered[-1][0]}")
 
         return filtered
 
@@ -1266,11 +1238,9 @@ class Panel1(QtWidgets.QWidget):
             # Latest time on RIGHT, oldest time on LEFT
             x_max = max(xs)  # Latest data point (RIGHT side)
             x_min = x_max - window_sec  # Start of window (LEFT side)
-            print(f"[DEBUG _auto_range] Setting X range: LEFT (old)={x_min}, RIGHT (new)={x_max}, window={window_sec}s")
         else:
             # YTD or no window - fit to data
             x_min, x_max = min(xs), max(xs)
-            print(f"[DEBUG _auto_range] Using data extent: x_min={x_min}, x_max={x_max}")
 
         y_min, y_max = min(ys), max(ys)
         if y_min == y_max:
@@ -1291,11 +1261,9 @@ class Panel1(QtWidgets.QWidget):
         Example: - $50.00 (5.80%) for losses
         Example: - $0.00 (0.00%) for neutral/zero
         """
-        print(f"[DEBUG panel1._compose_pnl_header_text] ENTRY: _pnl_val={self._pnl_val}, _pnl_pct={self._pnl_pct}, _pnl_up={self._pnl_up}")
 
         if self._pnl_val is None or self._pnl_pct is None:
             # Panel 1 should show $0.00 (0.00%) in neutral color, not dashes
-            print(f"[DEBUG panel1._compose_pnl_header_text] PnL value or pct is None, returning neutral")
             return "- $0.00 (0.00%)"
 
         # Get absolute values (always display positive amounts with icon to show direction)
@@ -1305,7 +1273,6 @@ class Panel1(QtWidgets.QWidget):
         # If PnL is essentially zero, show neutral icon
         if self._pnl_up is None:
             icon = "-"
-            print(f"[DEBUG panel1._compose_pnl_header_text] pnl_up is None, using neutral")
         else:
             # Choose icon based on direction
             icon = "+" if self._pnl_up else "-"
@@ -1434,24 +1401,20 @@ class Panel1(QtWidgets.QWidget):
     def _on_mouse_move(self, pos) -> None:
         """Keep hover bar tall but restore timestamp height; clamp inside left/right borders."""
         if not self._plot or self._vb is None:
-            print("[DEBUG HOVER] Plot or viewbox is None, returning")
             return
 
         # Use filtered points for the current timeframe instead of full history
         pts = self._filtered_points_for_current_tf()
         if not pts:
-            print(f"[DEBUG HOVER] No points for timeframe {self._tf}")
             if self._hover_seg:
                 self._hover_seg.setVisible(False)
             if self._hover_text:
                 self._hover_text.setVisible(False)
             return
 
-        print(f"[DEBUG HOVER] Timeframe={self._tf}, Points available: {len(pts)}")
 
         scene_rect = self._plot.sceneBoundingRect()
         if not scene_rect.contains(pos):
-            print("[DEBUG HOVER] Mouse position outside scene rect")
             if self._hover_seg:
                 self._hover_seg.setVisible(False)
             if self._hover_text:
@@ -1461,29 +1424,23 @@ class Panel1(QtWidgets.QWidget):
         vb = self._vb
         mp = vb.mapSceneToView(pos)
         x_mouse = float(mp.x())
-        print(f"[DEBUG HOVER] Mouse x_mouse={x_mouse}")
 
         # Clamp to visible range
         xr, yr = vb.viewRange()
-        print(f"[DEBUG HOVER] View range x=[{xr[0]}, {xr[1]}]")
         if x_mouse < xr[0] or x_mouse > xr[1]:
-            print("[DEBUG HOVER] Mouse outside view range, returning")
             return
 
         xs = [p[0] for p in pts]
         ys = [p[1] for p in pts]
-        print(f"[DEBUG HOVER] Data x range: [{min(xs)}, {max(xs)}]")
 
         # FIX: Find nearest actual data point instead of snapping to arbitrary intervals
         # The old logic created timestamps outside the data range
         idx = self._find_nearest_index(xs, x_mouse)
         if idx is None:
-            print("[DEBUG HOVER] No nearest index found")
             return
 
         x = float(xs[idx])
         y = float(ys[idx])
-        print(f"[DEBUG HOVER] Found point at idx={idx}, x={x}, y={y}")
         self._hovering = True
         self._scrub_x = x
 
@@ -1590,22 +1547,17 @@ class Panel1(QtWidgets.QWidget):
     def _find_nearest_index(self, xs: list, target_x: float) -> Optional[int]:
         """Find index of nearest x (snap-aware)."""
         if not xs:
-            print("[DEBUG HOVER] _find_nearest_index: xs is empty")
             return None
         import bisect
 
         i = bisect.bisect_right(xs, target_x)
-        print(f"[DEBUG HOVER] _find_nearest_index: target_x={target_x}, bisect_right returned i={i}, len(xs)={len(xs)}")
 
         if i == 0:
-            print(f"[DEBUG HOVER] _find_nearest_index: i==0, returning 0, xs[0]={xs[0]}")
             return 0
         if i >= len(xs):
-            print(f"[DEBUG HOVER] _find_nearest_index: i>=len(xs), returning {len(xs) - 1}, xs[-1]={xs[-1]}")
             return len(xs) - 1
 
         result = i if abs(xs[i] - target_x) < abs(xs[i - 1] - target_x) else i - 1
-        print(f"[DEBUG HOVER] _find_nearest_index: comparing xs[{i}]={xs[i]} vs xs[{i-1}]={xs[i-1]}, returning {result}")
         return result
 
     # -------------------- Hover calculations (end) ---------------------------
@@ -1627,7 +1579,6 @@ class Panel1(QtWidgets.QWidget):
                 if hasattr(state, "modeChanged"):
                     state.modeChanged.connect(self._on_mode_changed)
                     log.info("[Panel1] Connected mode change signal")
-                    print(f"[DEBUG panel1._wire_balance_signal] Connected to modeChanged signal")
         except Exception as e:
             log.error(f"[Panel1] Failed to wire signals: {e}")
 
@@ -1635,73 +1586,54 @@ class Panel1(QtWidgets.QWidget):
         """Called when StateManager emits balanceChanged signal.
         CRITICAL: Only display balance for the current trading mode.
         """
-        print(f"[DEBUG panel1._on_balance_changed] STEP 1: Balance changed signal received with balance={balance}")
         try:
             # Get current mode from state manager to know which balance to display
             from core.app_state import get_state_manager
             state = get_state_manager()
             current_mode = state.current_mode if state else "SIM"
-            print(f"[DEBUG panel1._on_balance_changed] STEP 2: Current mode is {current_mode}, balance signal is ${balance}")
 
             # Get the balance for the current mode
             if state:
                 display_balance = state.get_balance_for_mode(current_mode)
-                print(f"[DEBUG panel1._on_balance_changed] STEP 3: Balance for {current_mode} mode is ${display_balance}")
             else:
                 display_balance = balance
-                print(f"[DEBUG panel1._on_balance_changed] STEP 3: State manager not available, using passed balance ${balance}")
 
             # CRITICAL: Only update display if this balance is for the current mode
             # The balance parameter is ignored - we use get_balance_for_mode to get the right value
-            print(f"[DEBUG panel1._on_balance_changed] STEP 3a: Displaying balance ${display_balance} for mode {current_mode}")
 
             if hasattr(self, "lbl_balance") and self.lbl_balance:
-                print(f"[DEBUG panel1._on_balance_changed] STEP 4: lbl_balance widget exists, updating to {display_balance}")
                 self.lbl_balance.setText(_fmt_money(display_balance))
-                print(f"[DEBUG panel1._on_balance_changed] STEP 5: Balance label text set to {_fmt_money(display_balance)}")
                 # Force Qt repaint to display the change immediately
                 self.lbl_balance.update()
                 self.lbl_balance.repaint()
-                print(f"[DEBUG panel1._on_balance_changed] STEP 6: Widget repaint triggered")
                 log.debug(f"[Panel1] Balance updated to: ${display_balance:.2f}")
 
                 # CRITICAL: Also update the equity curve and PnL display for the current timeframe
-                print(f"[DEBUG panel1._on_balance_changed] STEP 7: Calling update_equity_series_from_balance()")
                 self.update_equity_series_from_balance(display_balance, mode=current_mode)
-                print(f"[DEBUG panel1._on_balance_changed] STEP 8: Equity curve and PnL updated")
             else:
-                print(f"[DEBUG panel1._on_balance_changed] ERROR: lbl_balance widget not found or is None")
         except Exception as e:
-            print(f"[DEBUG panel1._on_balance_changed] ERROR updating balance display: {e}")
             log.error(f"[Panel1] Error updating balance display: {e}")
 
     def _on_mode_changed(self, new_mode: str) -> None:
         """Called when mode switches (SIM <-> LIVE)"""
-        print(f"[DEBUG panel1._on_mode_changed] Mode changed to {new_mode}")
         # Update Panel1's display mode to match StateManager
         self._current_display_mode = new_mode
-        print(f"[DEBUG panel1._on_mode_changed] Updated _current_display_mode to {self._current_display_mode}")
 
         # CRITICAL: Update balance display for the new mode
-        print(f"[DEBUG panel1._on_mode_changed] Updating balance display for new mode")
         try:
             from core.app_state import get_state_manager
             state = get_state_manager()
             if state:
                 new_balance = state.get_balance_for_mode(new_mode)
-                print(f"[DEBUG panel1._on_mode_changed] Got balance for {new_mode}: ${new_balance:,.2f}")
                 if hasattr(self, "lbl_balance") and self.lbl_balance:
                     self.lbl_balance.setText(_fmt_money(new_balance))
                     self.lbl_balance.update()
                     self.lbl_balance.repaint()
-                    print(f"[DEBUG panel1._on_mode_changed] Balance label updated to ${new_balance:,.2f}")
         except Exception as e:
-            print(f"[DEBUG panel1._on_mode_changed] Error updating balance: {e}")
 
         # Refresh the PnL display with the new mode's data
         with contextlib.suppress(Exception):
             self._update_pnl_for_current_tf()
-        print(f"[DEBUG panel1._on_mode_changed] PnL display refreshed for {new_mode} mode")
 
     # -------------------- Signal Wiring (end) --------------------------------
 

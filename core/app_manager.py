@@ -77,10 +77,8 @@ class MainWindow(QtWidgets.QMainWindow):
         """Initialize state manager with error handling."""
         try:
             # Initialize database tables first
-            print("[DEBUG app_manager._setup_state_manager] Initializing database...")
             from data.db_engine import init_db
             init_db()
-            print("[DEBUG app_manager._setup_state_manager] Database initialized successfully")
 
             from core.state_manager import StateManager
             from core.app_state import set_state_manager
@@ -91,18 +89,13 @@ class MainWindow(QtWidgets.QMainWindow):
             set_state_manager(self._state)
 
             # Load SIM balance from database (sum of all trades' realized P&L)
-            print("[DEBUG app_manager._setup_state_manager] Loading SIM balance from trades...")
             loaded_balance = self._state.load_sim_balance_from_trades()
             print(f"\n[INITIAL BALANCE] SIM Account Loaded")
             print(f"  Starting Balance: $10,000.00")
             print(f"  Loaded Balance: ${self._state.sim_balance:,.2f}")
             print(f"  Total P&L from Trades: ${self._state.sim_balance - 10000.0:+,.2f}\n")
-            print(f"[DEBUG app_manager._setup_state_manager] SIM balance loaded: ${self._state.sim_balance:,.2f} (returned: ${loaded_balance:,.2f})")
         except Exception as e:
             error_msg = str(e).replace('\u2705', '[OK]').replace('\u2717', '[FAIL]').replace('✓', '[OK]').replace('✗', '[FAIL]')
-            print(f"[DEBUG app_manager._setup_state_manager] Error: {error_msg}")
-            print(f"[DEBUG app_manager._setup_state_manager] EXCEPTION TYPE: {type(e).__name__}")
-            print(f"[DEBUG app_manager._setup_state_manager] FULL TRACEBACK:")
             import traceback
             traceback.print_exc()
             self._state = None
@@ -200,61 +193,43 @@ class MainWindow(QtWidgets.QMainWindow):
 
         # Initialize Panel1's session start balance and equity curve
         # This ensures PnL calculates from the session start, not from the first balance update
-        print(f"[DEBUG app_manager._build_ui] STEP 1: Checking panel_balance={self.panel_balance}, _state={self._state}")
         try:
             if self.panel_balance and self._state:
-                print(f"[DEBUG app_manager._build_ui] STEP 2: Both panel_balance and _state exist")
                 starting_balance = self._state.sim_balance
-                print(f"[DEBUG app_manager._build_ui] STEP 3: starting_balance = {starting_balance}")
 
                 # CRITICAL: Load equity curve from database FIRST (before adding any new points)
                 # This ensures we don't lose historical data
-                print(f"[DEBUG app_manager._build_ui] STEP 3a: Loading equity curve from database for SIM/''")
                 self.panel_balance._equity_points = self.panel_balance._get_equity_curve("SIM", "")
-                print(f"[DEBUG app_manager._build_ui] STEP 3b: Loaded {len(self.panel_balance._equity_points)} points from database")
 
                 # If we loaded historical data, don't add a new starting point (use the last balance from history)
                 # Only add initial point if this is a fresh start with no trades
                 if not self.panel_balance._equity_points:
-                    print(f"[DEBUG app_manager._build_ui] STEP 3c: No historical data, adding initial point")
                     # Store the session start balance for PnL baseline calculation
                     self.panel_balance._session_start_balance_sim = starting_balance
                     self.panel_balance._session_start_balance_live = 0.0  # No LIVE balance at startup
                     # Also add it to equity curve so graph has initial point
                     self.panel_balance.update_equity_series_from_balance(starting_balance, mode="SIM")
                 else:
-                    print(f"[DEBUG app_manager._build_ui] STEP 3c: Historical data found, using last balance as session start")
                     # Use the last point from historical data as session start baseline
                     last_balance = self.panel_balance._equity_points[-1][1]
                     self.panel_balance._session_start_balance_sim = last_balance
                     self.panel_balance._session_start_balance_live = 0.0  # No LIVE balance at startup
-                    print(f"[DEBUG app_manager._build_ui] Session start balance set to ${last_balance:,.2f} (from last trade)")
 
                 # Display SIM balance by emitting balance signal
-                print(f"[DEBUG app_manager._build_ui] STEP 4: Emitting balance signal for SIM balance display...")
                 try:
                     # Emit the balance signal directly to trigger display
                     self._state.balanceChanged.emit(starting_balance)
-                    print(f"[DEBUG app_manager._build_ui] STEP 4d: SIM balance signal emitted: ${starting_balance:,.2f}")
                 except Exception as e:
-                    print(f"[DEBUG app_manager._build_ui] Error emitting balance signal: {e}")
 
                 # Redraw graph with loaded equity curve
-                print(f"[DEBUG app_manager._build_ui] STEP 3d: Replotting graph with loaded curve")
                 if hasattr(self.panel_balance, "_replot_from_cache"):
                     self.panel_balance._replot_from_cache()
 
-                print(f"\n[SESSION START] Panel 1 Initialized")
-                print(f"  Session Start Balance (SIM): ${starting_balance:,.2f}")
-                print(f"  Equity Curve Points: {len(self.panel_balance._equity_points)}")
-                print(f"  PnL Baseline Set: ${self.panel_balance._session_start_balance_sim:,.2f}\n")
-                print(f"[DEBUG app_manager._build_ui] Initialized Panel1 with SIM balance: ${starting_balance:,.2f}")
-                print(f"[DEBUG app_manager._build_ui] Session start balance SIM: ${self.panel_balance._session_start_balance_sim:,.2f}")
+                # Concise session start notification
+                print(f"[SESSION START] SIM Balance: ${starting_balance:,.2f} | Equity Points: {len(self.panel_balance._equity_points)}")
                 log.debug(f"[Startup] Panel1 initialized with SIM balance: ${starting_balance:,.2f}")
             else:
-                print(f"[DEBUG app_manager._build_ui] STEP 2z: panel_balance or _state is None/False")
         except Exception as e:
-            print(f"[DEBUG app_manager._build_ui] EXCEPTION: Failed to initialize Panel1: {e}")
             import traceback
             traceback.print_exc()
             log.debug(f"[Startup] Failed to initialize Panel1: {e}")

@@ -43,7 +43,7 @@ except Exception as e:
 def init_db() -> None:
     """
     Create all database tables based on SQLModel metadata.
-    Logs a short inventory before running create_all().
+    Also runs any pending migrations.
     """
     tables = list(SQLModel.metadata.tables.keys())
     print("Models registered in SQLModel metadata:")
@@ -52,8 +52,41 @@ def init_db() -> None:
             print(" -", name)
         SQLModel.metadata.create_all(engine)
         print("[OK] Database tables created successfully.")
+
+        # Run migrations to add any missing columns
+        _run_migrations()
     else:
         print("[WARNING] No tables detected. Ensure your schema models import correctly.")
+
+
+def _run_migrations() -> None:
+    """
+    Auto-run database migrations on startup.
+    Adds missing columns like 'efficiency' to existing tables.
+    """
+    from pathlib import Path
+
+    migrations_dir = Path(__file__).parent / "migrations"
+
+    if not migrations_dir.exists():
+        return
+
+    # Run add_efficiency_column migration
+    efficiency_migration = migrations_dir / "add_efficiency_column.sql"
+
+    if efficiency_migration.exists():
+        try:
+            sql = efficiency_migration.read_text()
+            with engine.connect() as conn:
+                conn.execute(text(sql))
+                conn.commit()
+                print("[MIGRATION] ✓ Applied: add_efficiency_column.sql")
+        except Exception as e:
+            # If column already exists, skip silently
+            if "already exists" in str(e).lower() or "duplicate column" in str(e).lower():
+                pass  # Column exists, no action needed
+            else:
+                print(f"[MIGRATION] Warning: {e}")
 
 
 @contextmanager

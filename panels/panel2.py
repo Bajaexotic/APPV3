@@ -169,33 +169,21 @@ class Panel2(QtWidgets.QWidget, ThemeAwareMixin):
         exit_p = trade.get("exit_price", "?")
         qty = trade.get("qty", "?")
 
-        print(f"\n{'='*100}")
-        print(f"[TRADE CLOSE EVENT] {symbol} closed with {pnl_sign}${abs(pnl):,.2f} P&L")
-        print(f"  Entry: ${entry}  Exit: ${exit_p}  Qty: {qty}")
-        if balance_before is not None:
-            balance_after = balance_before + pnl
-            print(f"  Balance BEFORE: ${balance_before:,.2f}")
-            print(f"  Balance AFTER:  ${balance_after:,.2f} ({pnl_sign}${abs(pnl):,.2f})")
-        print(f"  Mode: {mode}")
-        print(f"  - About to emit tradesChanged signal to all listeners")
-        print(f"{'='*100}")
-        print(f"[DEBUG panel2.notify_trade_closed] STEP 1: Trade closed notification received: {trade}")
+        # Simple one-line trade close notification
+        print(f"[TRADE CLOSE] {symbol} {qty} @ {entry} → {exit_p} | P&L: {pnl_sign}${abs(pnl):,.2f} | Mode: {mode}")
         try:
             from services.trade_service import TradeManager
             from core.app_state import get_state_manager
 
             state = get_state_manager()
             trade_manager = TradeManager(state_manager=state)
-            print(f"[DEBUG panel2.notify_trade_closed] TradeManager instantiated successfully with state_manager={state}")
         except Exception as e:
-            print(f"[DEBUG panel2.notify_trade_closed] Failed to instantiate TradeManager: {e}")
             trade_manager = None
         ok = False
         try:
             if trade_manager:
                 # Extract account from trade dict for mode detection
                 account = trade.get("account", "")
-                print(f"[DEBUG panel2.notify_trade_closed] STEP 2: Account extracted: {account}")
 
                 # Create pos_info dict from trade data
                 pos_info = {
@@ -204,10 +192,8 @@ class Panel2(QtWidgets.QWidget, ThemeAwareMixin):
                     "entry_time": trade.get("entry_time"),
                     "account": account,
                 }
-                print(f"[DEBUG panel2.notify_trade_closed] STEP 3: pos_info created: {pos_info}")
 
                 # Call record_closed_trade with proper signature
-                print(f"[DEBUG panel2.notify_trade_closed] STEP 4: Calling record_closed_trade with symbol={trade.get('symbol')}")
                 try:
                     ok = trade_manager.record_closed_trade(
                         symbol=trade.get("symbol", ""),
@@ -221,27 +207,21 @@ class Panel2(QtWidgets.QWidget, ThemeAwareMixin):
                         efficiency=trade.get("efficiency"),
                         # Account will be auto-detected in record_closed_trade
                     )
-                    print(f"[DEBUG panel2.notify_trade_closed] STEP 5: record_closed_trade returned ok={ok}")
                 except Exception as method_error:
-                    print(f"[DEBUG panel2.notify_trade_closed] EXCEPTION calling record_closed_trade: {method_error}")
                     import traceback
                     traceback.print_exc()
                     ok = False
         except Exception as e:
             from utils.logger import get_logger
             log = get_logger(__name__)
-            print(f"[DEBUG panel2.notify_trade_closed] ERROR in record_closed_trade: {e}")
             log.error(f"[panel2] Error recording closed trade: {e}", exc_info=True)
             ok = False
         # Emit regardless; consumers may refresh their views
         try:
             payload = dict(trade)
             payload["ok"] = ok
-            print(f"[DEBUG panel2.notify_trade_closed] STEP 6: Emitting tradesChanged signal with payload ok={ok}")
             self.tradesChanged.emit(payload)
-            print(f"[DEBUG panel2.notify_trade_closed] STEP 7: Signal emitted successfully")
         except Exception as e:
-            print(f"[DEBUG panel2.notify_trade_closed] ERROR emitting signal: {e}")
 
     # -------------------- Trade persistence hooks (end)
 
@@ -289,7 +269,6 @@ class Panel2(QtWidgets.QWidget, ThemeAwareMixin):
             if qty > 0 and price is not None:
                 # Only seed if we're currently flat (no existing position)
                 if not (self.entry_qty and self.entry_price is not None and self.is_long is not None):
-                    print(f"\n[DEBUG panel2.on_order_update] POSITION OPENING:")
                     print(f"  Position was flat, seeding from fill")
                     print(f"  qty={qty}, price={price}, is_long={is_long}")
                     self.set_position(qty, price, is_long)
@@ -304,7 +283,6 @@ class Panel2(QtWidgets.QWidget, ThemeAwareMixin):
             # CRITICAL FIX: Only process as a CLOSE if quantity is DECREASING
             # If qty stayed the same or increased, this is NOT a close - skip it!
             current_qty = self.entry_qty if self.entry_qty else 0
-            print(f"\n[DEBUG panel2.on_order_update] QUANTITY CHECK:")
             print(f"  Current position qty: {current_qty}")
             print(f"  Incoming fill qty: {qty}")
             print(f"  Order side (1=Buy, 2=Sell): {side}")
@@ -402,7 +380,6 @@ class Panel2(QtWidgets.QWidget, ThemeAwareMixin):
                 "account": account,  # ← Include account for mode detection (SIM/LIVE)
             }
 
-            print(f"\n[DEBUG panel2.on_order_update] TRADE CLOSE CONSTRUCTED:")
             print(f"  Symbol: {trade['symbol']}")
             print(f"  Side: {trade['side']}")
             print(f"  Qty: {trade['qty']}")
@@ -410,7 +387,6 @@ class Panel2(QtWidgets.QWidget, ThemeAwareMixin):
             print(f"  Exit: ${trade['exit_price']:.2f}")
             print(f"  PnL: ${trade['realized_pnl']:,.2f}")
             print(f"  Account: {trade['account']}")
-            print(f"  About to call notify_trade_closed()...\n")
 
             self.notify_trade_closed(trade)
 
@@ -463,8 +439,6 @@ class Panel2(QtWidgets.QWidget, ThemeAwareMixin):
 
             # CRITICAL: Detect trade closure - position went from non-zero to zero
             if qty == 0 and self.entry_qty and self.entry_qty > 0 and self.entry_price is not None and self.is_long is not None:
-                print(f"\n[DEBUG on_position_update] TRADE CLOSURE DETECTED (PositionUpdate qty=0)")
-                print(f"  Previous position: qty={self.entry_qty}, entry={self.entry_price}, long={self.is_long}")
 
                 # Use last price as exit price (position already closed, we don't have fill price here)
                 exit_price = self.last_price if self.last_price else self.entry_price
@@ -527,7 +501,6 @@ class Panel2(QtWidgets.QWidget, ThemeAwareMixin):
                     "account": account,
                 }
 
-                print(f"  Trade constructed: {side} {qty_val} @ entry={entry_price_val:.2f}, exit={exit_price:.2f}")
                 print(f"  PnL: ${realized_pnl:,.2f}, account={account}")
                 print(f"  Calling notify_trade_closed()...\n")
 

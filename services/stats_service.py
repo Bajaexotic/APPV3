@@ -53,7 +53,6 @@ def compute_trading_stats_for_timeframe(tf: str, mode: str | None = None) -> dic
     Returns a dict keyed by PANEL3_METRICS friendly labels.
     Uses TradeRecord.exit_time when present; falls back to timestamp.
     """
-    print(f"\n[DEBUG STATS] compute_trading_stats_for_timeframe() called:")
     print(f"  timeframe={tf}, mode={mode}")
 
     # Local imports to avoid hard dependency at import time
@@ -63,13 +62,10 @@ def compute_trading_stats_for_timeframe(tf: str, mode: str | None = None) -> dic
         from data.db_engine import get_session
         from data.schema import TradeRecord
         from services.trade_math import TradeMath
-        print(f"[DEBUG STATS] ✓ Imports successful")
     except Exception as e:
-        print(f"[DEBUG STATS] ✗ Import failed: {e}")
         return {}
 
     start = _timeframe_start(tf)
-    print(f"[DEBUG STATS] Querying trades from {start.isoformat()}")
 
     # Get active mode from state manager if not provided
     if mode is None:
@@ -78,12 +74,9 @@ def compute_trading_stats_for_timeframe(tf: str, mode: str | None = None) -> dic
             state = get_state_manager()
             # Use position_mode if there's an active position, otherwise current_mode
             mode = state.position_mode if state and state.has_active_position() else (state.current_mode if state else "SIM")
-            print(f"[DEBUG STATS] Mode detected from state: {mode}")
         except Exception as e:
             mode = "SIM"  # Default fallback
-            print(f"[DEBUG STATS] Mode detection failed, using default: {mode}")
 
-    print(f"[DEBUG STATS] Final mode filter: {mode}")
 
     pnls: list[float] = []
     commissions_sum = 0.0
@@ -92,7 +85,6 @@ def compute_trading_stats_for_timeframe(tf: str, mode: str | None = None) -> dic
     mae_list: list[float] = []
     mfe_list: list[float] = []
 
-    print(f"[DEBUG STATS] Opening database session...")
     with get_session() as s:  # type: ignore
         time_field = getattr(TradeRecord, "exit_time", None) or getattr(TradeRecord, "timestamp")
         query = (
@@ -106,13 +98,10 @@ def compute_trading_stats_for_timeframe(tf: str, mode: str | None = None) -> dic
             query = query.filter(TradeRecord.mode == mode)
 
         rows = query.order_by(time_field.asc()).all()
-        print(f"[DEBUG STATS] Found {len(rows)} trades in database for {tf} / mode={mode}")
 
         if not rows:
-            print(f"[DEBUG STATS] ⚠ No trades found! Returning empty stats")
 
         for idx, r in enumerate(rows, 1):
-            print(f"[DEBUG STATS] Trade {idx}: {r.symbol} | PnL={r.realized_pnl} | Exit={r.exit_time}")
             if r.realized_pnl is not None:
                 pnls.append(float(r.realized_pnl))
                 print(f"  → Added to PnL list: {r.realized_pnl}")
@@ -128,7 +117,6 @@ def compute_trading_stats_for_timeframe(tf: str, mode: str | None = None) -> dic
             if getattr(r, "mfe", None) is not None:
                 mfe_list.append(float(r.mfe))
 
-    print(f"\n[DEBUG STATS] ✓ Database query complete")
     print(f"  Total PnL values collected: {len(pnls)}")
     print(f"  PnL list: {pnls}")
 
@@ -186,7 +174,6 @@ def compute_trading_stats_for_timeframe(tf: str, mode: str | None = None) -> dic
     mae_avg = (sum(mae_list) / len(mae_list)) if mae_list else None
     mfe_avg = (sum(mfe_list) / len(mfe_list)) if mfe_list else None
 
-    print(f"\n[DEBUG STATS] Calculation Summary:")
     print(f"  Total PnL: {total_pnl}")
     print(f"  Wins: {len(wins)} trades = ${sum_w:,.2f}")
     print(f"  Losses: {len(losses)} trades = ${sum_l:,.2f}")
@@ -219,7 +206,6 @@ def compute_trading_stats_for_timeframe(tf: str, mode: str | None = None) -> dic
         "Sharpe Ratio": f"{sharpe:.2f}",
     }
 
-    print(f"\n[DEBUG STATS] ✓ Stats calculation complete, returning {len(result_dict)} metrics")
     print(f"  Total PnL (formatted): {result_dict.get('Total PnL')}")
     print(f"  Trade Count: {result_dict.get('Trades')}")
     print(f"\n{'='*80}\n")
