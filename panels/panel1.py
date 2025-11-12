@@ -900,6 +900,8 @@ class Panel1(QtWidgets.QWidget):
                 else:
                     balance = state.live_balance
                 self.set_account_balance(balance)
+                # CRITICAL: Also add point to equity curve for new scope
+                self.update_equity_series_from_balance(balance, mode=mode)
                 log.debug(f"[Panel1] Updated balance for {mode}/{account}: ${balance:,.2f}")
         except Exception as e:
             log.debug(f"[Panel1] Could not update balance on mode switch: {e}")
