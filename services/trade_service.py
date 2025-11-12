@@ -133,6 +133,7 @@ class TradeManager:
         r_multiple: Optional[float] = None,
         mae: Optional[float] = None,
         mfe: Optional[float] = None,
+        efficiency: Optional[float] = None,
         mode: Optional[str] = None,
         entry_vwap: Optional[float] = None,
         entry_cum_delta: Optional[float] = None,
@@ -151,6 +152,7 @@ class TradeManager:
             r_multiple: Risk multiple
             mae: Maximum adverse excursion
             mfe: Maximum favorable excursion
+            efficiency: Capture ratio (realized_pnl / mfe, 0.0-1.0+)
             mode: "SIM" or "LIVE" (detected from account if not provided)
             entry_vwap: Entry VWAP snapshot
             entry_cum_delta: Entry cumulative delta
@@ -277,6 +279,7 @@ class TradeManager:
                 r_multiple=float(r_multiple) if r_multiple else None,
                 mae=float(mae) if mae else None,
                 mfe=float(mfe) if mfe else None,
+                efficiency=float(efficiency) if efficiency is not None else None,
                 account=account,
             )
 

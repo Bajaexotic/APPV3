@@ -46,6 +46,7 @@ class TradeRecord(SQLModel, table=True):
     r_multiple: Optional[float] = None
     mae: Optional[float] = None
     mfe: Optional[float] = None
+    efficiency: Optional[float] = None  # realized_pnl / mfe (capture ratio, 0.0-1.0+)
 
     # Account info
     account: Optional[str] = None

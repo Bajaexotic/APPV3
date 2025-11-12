@@ -218,6 +218,7 @@ class Panel2(QtWidgets.QWidget, ThemeAwareMixin):
                         r_multiple=trade.get("r_multiple"),
                         mae=trade.get("mae"),
                         mfe=trade.get("mfe"),
+                        efficiency=trade.get("efficiency"),
                         # Account will be auto-detected in record_closed_trade
                     )
                     print(f"[DEBUG panel2.notify_trade_closed] STEP 5: record_closed_trade returned ok={ok}")
@@ -347,18 +348,28 @@ class Panel2(QtWidgets.QWidget, ThemeAwareMixin):
                     r_multiple = realized_pnl / (risk_per_contract * qty)
 
             # MAE/MFE in PnL units using tracked extremes
+            # LONG: MAE from min (adverse), MFE from max (favorable)
+            # SHORT: MAE from max (adverse), MFE from min (favorable)
             mae = None
             mfe = None
+            efficiency = None
             try:
                 if self._trade_min_price is not None and self._trade_max_price is not None:
                     if self.is_long:
                         mae_pts = min(0.0, self._trade_min_price - entry_price)
                         mfe_pts = max(0.0, self._trade_max_price - entry_price)
-                    else:
+                    else:  # SHORT
                         mae_pts = min(0.0, entry_price - self._trade_max_price)
                         mfe_pts = max(0.0, entry_price - self._trade_min_price)
                     mae = mae_pts * DOLLARS_PER_POINT * qty
                     mfe = mfe_pts * DOLLARS_PER_POINT * qty
+
+                    # Calculate efficiency: (realized PnL / MFE) if MFE > 0
+                    if mfe > 0 and realized_pnl is not None:
+                        # Efficiency = realized profit / maximum potential profit
+                        # Expressed as decimal (0.0 to 1.0, where 1.0 = 100% efficient)
+                        # Can exceed 1.0 if trail added profit beyond max seen during trade
+                        efficiency = realized_pnl / mfe
             except Exception:
                 pass
 
@@ -387,6 +398,7 @@ class Panel2(QtWidgets.QWidget, ThemeAwareMixin):
                 "r_multiple": r_multiple,
                 "mae": mae,
                 "mfe": mfe,
+                "efficiency": efficiency,
                 "account": account,  # ← Include account for mode detection (SIM/LIVE)
             }
 
@@ -1412,13 +1424,29 @@ class Panel2(QtWidgets.QWidget, ThemeAwareMixin):
             data["net_pnl"] = net_pnl
 
             # MAE/MFE from session extremes
+            # LONG: MAE from low (adverse), MFE from high (favorable)
+            # SHORT: MAE from high (adverse), MFE from low (favorable)
             if self.session_low is not None and self.session_high is not None:
-                mae_pts = (self.session_low - self.entry_price) * sign
-                mfe_pts = (self.session_high - self.entry_price) * sign
+                if self.is_long:
+                    mae_pts = min(0.0, self.session_low - self.entry_price)
+                    mfe_pts = max(0.0, self.session_high - self.entry_price)
+                else:  # SHORT
+                    mae_pts = min(0.0, self.entry_price - self.session_high)
+                    mfe_pts = max(0.0, self.entry_price - self.session_low)
+
                 data["mae_points"] = mae_pts
                 data["mfe_points"] = mfe_pts
                 data["mae_dollars"] = mae_pts * DOLLARS_PER_POINT * self.entry_qty
                 data["mfe_dollars"] = mfe_pts * DOLLARS_PER_POINT * self.entry_qty
+
+                # Calculate efficiency: (realized PnL / MFE) if MFE > 0
+                if mfe_pts > 0 and "net_pnl" in data:
+                    # Efficiency = realized profit / maximum potential profit
+                    # Expressed as percentage (0.0 to 1.0, where 1.0 = 100% efficient)
+                    efficiency = min(1.0, max(0.0, data["net_pnl"] / (mfe_pts * DOLLARS_PER_POINT * self.entry_qty)))
+                    data["efficiency"] = efficiency
+                else:
+                    data["efficiency"] = None
 
             # R-multiple
             if self.stop_price is not None and float(self.stop_price) > 0:
