@@ -378,6 +378,13 @@ class StateManager(QtCore.QObject):
         # Only add to history if mode actually changed
         if mode != self.current_mode:
             self._add_to_mode_history(mode, account)
+            self._log_mode_change("StateManager.detect_and_set_mode", mode)
+
+            # Emit modeChanged signal so UI (Panel 3) can update
+            try:
+                self.modeChanged.emit(mode)
+            except Exception:
+                pass  # Signal emission failure shouldn't crash
 
         self.current_mode = mode
         self.current_account = account
