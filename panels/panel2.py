@@ -923,6 +923,9 @@ class Panel2(QtWidgets.QWidget, ThemeAwareMixin):
                 self.entry_vwap = self.vwap
                 self.entry_delta = self.cum_delta
                 self.entry_poc = self.poc
+                # Initialize trade extremes to entry price (prevents premature MAE/MFE)
+                self._trade_min_price = self.entry_price
+                self._trade_max_price = self.entry_price
                 log.info(
                     f"[panel2] Position opened — Entry VWAP: {self.entry_vwap}, Entry Delta: {self.entry_delta}, Entry POC: {self.entry_poc}"
                 )
@@ -937,6 +940,9 @@ class Panel2(QtWidgets.QWidget, ThemeAwareMixin):
             self.entry_poc = None
             self.entry_time_epoch = None
             self.heat_start_epoch = None
+            # Clear trade extremes (MAE/MFE tracking)
+            self._trade_min_price = None
+            self._trade_max_price = None
             log.info("[panel2] Position closed — all position data cleared")
         self._save_state()
         self._refresh_all_cells()
@@ -1423,16 +1429,17 @@ class Panel2(QtWidgets.QWidget, ThemeAwareMixin):
             data["commissions"] = comm
             data["net_pnl"] = net_pnl
 
-            # MAE/MFE from session extremes
-            # LONG: MAE from low (adverse), MFE from high (favorable)
-            # SHORT: MAE from high (adverse), MFE from low (favorable)
-            if self.session_low is not None and self.session_high is not None:
+            # MAE/MFE from TRADE extremes (not session extremes)
+            # LONG: MAE from min (adverse), MFE from max (favorable)
+            # SHORT: MAE from max (adverse), MFE from min (favorable)
+            # These track min/max SINCE position entry, not session-wide
+            if self._trade_min_price is not None and self._trade_max_price is not None:
                 if self.is_long:
-                    mae_pts = min(0.0, self.session_low - self.entry_price)
-                    mfe_pts = max(0.0, self.session_high - self.entry_price)
+                    mae_pts = min(0.0, self._trade_min_price - self.entry_price)
+                    mfe_pts = max(0.0, self._trade_max_price - self.entry_price)
                 else:  # SHORT
-                    mae_pts = min(0.0, self.entry_price - self.session_high)
-                    mfe_pts = max(0.0, self.entry_price - self.session_low)
+                    mae_pts = min(0.0, self.entry_price - self._trade_max_price)
+                    mfe_pts = max(0.0, self.entry_price - self._trade_min_price)
 
                 data["mae_points"] = mae_pts
                 data["mfe_points"] = mfe_pts
