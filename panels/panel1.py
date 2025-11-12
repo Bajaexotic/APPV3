@@ -820,9 +820,77 @@ class Panel1(QtWidgets.QWidget):
         neon_glow.setOffset(0, 0)
         self.mode_badge.setGraphicsEffect(neon_glow)
 
+    def _load_equity_curve_from_database(self, mode: str, account: str) -> list[tuple[float, float]]:
+        """
+        Rebuild equity curve from trade history in the database.
+
+        Queries all closed trades for the given (mode, account) scope,
+        sorts them by exit time, and builds a cumulative balance curve.
+
+        Args:
+            mode: Trading mode ("SIM", "LIVE", "DEBUG")
+            account: Account identifier
+
+        Returns:
+            List of (timestamp, balance) points for the equity curve
+        """
+        print(f"[DEBUG Panel1._load_equity_curve_from_database] Loading equity curve for {mode}/{account}")
+
+        try:
+            from datetime import timezone
+            from data.db_engine import get_session
+            from data.schema import TradeRecord
+
+            # Get starting balance (default 10k for SIM, 0 for LIVE)
+            starting_balance = 10000.0 if mode == "SIM" else 0.0
+
+            # Query all trades for this mode, ordered by exit time
+            with get_session() as s:
+                query = (
+                    s.query(TradeRecord)
+                    .filter(TradeRecord.mode == mode)
+                    .filter(TradeRecord.is_closed == True)
+                    .filter(TradeRecord.realized_pnl.isnot(None))
+                    .filter(TradeRecord.exit_time.isnot(None))
+                    .order_by(TradeRecord.exit_time.asc())
+                )
+
+                trades = query.all()
+                print(f"[DEBUG Panel1._load_equity_curve_from_database] Found {len(trades)} trades for {mode}")
+
+                if not trades:
+                    # No trades yet, return empty curve
+                    print(f"[DEBUG Panel1._load_equity_curve_from_database] No trades found, returning empty curve")
+                    return []
+
+                # Build equity curve: cumulative sum of P&L
+                equity_points = []
+                cumulative_balance = starting_balance
+
+                for trade in trades:
+                    if trade.realized_pnl is not None and trade.exit_time is not None:
+                        cumulative_balance += trade.realized_pnl
+                        timestamp = trade.exit_time.replace(tzinfo=timezone.utc).timestamp()
+                        equity_points.append((timestamp, cumulative_balance))
+                        print(f"  Trade: {trade.symbol} | PnL={trade.realized_pnl:+.2f} | Balance=${cumulative_balance:,.2f} | Time={trade.exit_time}")
+
+                print(f"[DEBUG Panel1._load_equity_curve_from_database] Built curve with {len(equity_points)} points")
+                print(f"  Starting balance: ${starting_balance:,.2f}")
+                if equity_points:
+                    print(f"  Ending balance: ${equity_points[-1][1]:,.2f}")
+
+                return equity_points
+
+        except Exception as e:
+            log.error(f"[Panel1] Error loading equity curve from database: {e}", exc_info=True)
+            print(f"[DEBUG Panel1._load_equity_curve_from_database] ERROR: {e}")
+            import traceback
+            traceback.print_exc()
+            return []
+
     def _get_equity_curve(self, mode: str, account: str) -> list[tuple[float, float]]:
         """
-        Get equity curve for (mode, account) scope, initializing if needed.
+        Get equity curve for (mode, account) scope, loading from database if not cached.
 
         Args:
             mode: Trading mode ("SIM", "LIVE", "DEBUG")
@@ -833,7 +901,9 @@ class Panel1(QtWidgets.QWidget):
         """
         scope = (mode, account)
         if scope not in self._equity_curves:
-            self._equity_curves[scope] = []
+            # Load from database on first access
+            print(f"[DEBUG Panel1._get_equity_curve] Curve not in cache, loading from database for {mode}/{account}")
+            self._equity_curves[scope] = self._load_equity_curve_from_database(mode, account)
         return self._equity_curves[scope]
 
     def set_trading_mode(self, mode: str, account: Optional[str] = None) -> None:

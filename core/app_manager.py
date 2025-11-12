@@ -206,11 +206,29 @@ class MainWindow(QtWidgets.QMainWindow):
                 print(f"[DEBUG app_manager._build_ui] STEP 2: Both panel_balance and _state exist")
                 starting_balance = self._state.sim_balance
                 print(f"[DEBUG app_manager._build_ui] STEP 3: starting_balance = {starting_balance}")
-                # Store the session start balance for PnL baseline calculation
-                self.panel_balance._session_start_balance_sim = starting_balance
-                self.panel_balance._session_start_balance_live = 0.0  # No LIVE balance at startup
-                # Also add it to equity curve so graph has initial point
-                self.panel_balance.update_equity_series_from_balance(starting_balance, mode="SIM")
+
+                # CRITICAL: Load equity curve from database FIRST (before adding any new points)
+                # This ensures we don't lose historical data
+                print(f"[DEBUG app_manager._build_ui] STEP 3a: Loading equity curve from database for SIM/''")
+                self.panel_balance._equity_points = self.panel_balance._get_equity_curve("SIM", "")
+                print(f"[DEBUG app_manager._build_ui] STEP 3b: Loaded {len(self.panel_balance._equity_points)} points from database")
+
+                # If we loaded historical data, don't add a new starting point (use the last balance from history)
+                # Only add initial point if this is a fresh start with no trades
+                if not self.panel_balance._equity_points:
+                    print(f"[DEBUG app_manager._build_ui] STEP 3c: No historical data, adding initial point")
+                    # Store the session start balance for PnL baseline calculation
+                    self.panel_balance._session_start_balance_sim = starting_balance
+                    self.panel_balance._session_start_balance_live = 0.0  # No LIVE balance at startup
+                    # Also add it to equity curve so graph has initial point
+                    self.panel_balance.update_equity_series_from_balance(starting_balance, mode="SIM")
+                else:
+                    print(f"[DEBUG app_manager._build_ui] STEP 3c: Historical data found, using last balance as session start")
+                    # Use the last point from historical data as session start baseline
+                    last_balance = self.panel_balance._equity_points[-1][1]
+                    self.panel_balance._session_start_balance_sim = last_balance
+                    self.panel_balance._session_start_balance_live = 0.0  # No LIVE balance at startup
+                    print(f"[DEBUG app_manager._build_ui] Session start balance set to ${last_balance:,.2f} (from last trade)")
 
                 # Display SIM balance by emitting balance signal
                 print(f"[DEBUG app_manager._build_ui] STEP 4: Emitting balance signal for SIM balance display...")
@@ -220,6 +238,11 @@ class MainWindow(QtWidgets.QMainWindow):
                     print(f"[DEBUG app_manager._build_ui] STEP 4d: SIM balance signal emitted: ${starting_balance:,.2f}")
                 except Exception as e:
                     print(f"[DEBUG app_manager._build_ui] Error emitting balance signal: {e}")
+
+                # Redraw graph with loaded equity curve
+                print(f"[DEBUG app_manager._build_ui] STEP 3d: Replotting graph with loaded curve")
+                if hasattr(self.panel_balance, "_replot_from_cache"):
+                    self.panel_balance._replot_from_cache()
 
                 print(f"\n[SESSION START] Panel 1 Initialized")
                 print(f"  Session Start Balance (SIM): ${starting_balance:,.2f}")
