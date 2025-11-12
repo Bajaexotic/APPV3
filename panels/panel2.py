@@ -1218,11 +1218,17 @@ class Panel2(QtWidgets.QWidget, ThemeAwareMixin):
             self.c_range.set_value_text("--")
             self.c_range.set_value_color(THEME.get("text_dim"))
 
-        # MAE / MFE from session low/high relative to entry
-        if self.session_low is not None and self.session_high is not None:
-            sgn = 1 if (self.is_long is True) else (-1 if self.is_long is False else 0)
-            mae_pts = (self.session_low - self.entry_price) * sgn
-            mfe_pts = (self.session_high - self.entry_price) * sgn
+        # MAE / MFE from TRADE extremes (not session extremes)
+        # LONG: MAE from min (adverse), MFE from max (favorable)
+        # SHORT: MAE from max (adverse), MFE from min (favorable)
+        # These track min/max SINCE position entry, not session-wide
+        if self._trade_min_price is not None and self._trade_max_price is not None:
+            if self.is_long:
+                mae_pts = min(0.0, self._trade_min_price - self.entry_price)
+                mfe_pts = max(0.0, self._trade_max_price - self.entry_price)
+            else:  # SHORT
+                mae_pts = min(0.0, self.entry_price - self._trade_max_price)
+                mfe_pts = max(0.0, self.entry_price - self._trade_min_price)
 
             self.c_mae.set_value_text(f"{mae_pts:.2f} pt")
             self.c_mae.set_value_color(THEME.get("pnl_neg_color") if mae_pts < 0 else THEME.get("pnl_neu_color"))
@@ -1269,15 +1275,21 @@ class Panel2(QtWidgets.QWidget, ThemeAwareMixin):
 
         # Efficiency = PnL / MFE_value; show 0 if MFE <= 0
         # Position guaranteed, so entry_price, last_price, is_long exist
+        # Uses TRADE max price (not session high) for accurate MFE
         eff_val: Optional[float] = None
-        if self.last_price is not None:
-            sgn = 1 if (self.is_long is True) else (-1 if self.is_long is False else 0)
-            pnl_pts = (self.last_price - self.entry_price) * sgn
-            mfe_pts = None
-            if self.session_high is not None:
-                mfe_pts = (self.session_high - self.entry_price) * sgn
-            if mfe_pts and mfe_pts > 1e-9:
+        if self.last_price is not None and self._trade_max_price is not None:
+            # Calculate current P&L in points
+            if self.is_long:
+                pnl_pts = self.last_price - self.entry_price
+                mfe_pts = max(0.0, self._trade_max_price - self.entry_price)
+            else:  # SHORT
+                pnl_pts = self.entry_price - self.last_price
+                mfe_pts = max(0.0, self.entry_price - self._trade_min_price)
+
+            # Calculate efficiency if MFE is positive
+            if mfe_pts > 1e-9:
                 eff_val = pnl_pts / mfe_pts
+
         if eff_val is None:
             self.c_eff.set_value_text("--")
             self.c_eff.set_value_color(THEME.get("text_dim"))
