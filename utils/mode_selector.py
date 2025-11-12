@@ -75,7 +75,9 @@ def setup_mode_hotkey(window):
             if hasattr(window, "panel_balance"):
                 panel1 = window.panel_balance
                 if hasattr(panel1, "set_trading_mode"):
-                    panel1.set_trading_mode(new_mode)
+                    # Note: account parameter is empty string for manual mode switching
+                    # In production, this should be replaced with DTC auto-detection
+                    panel1.set_trading_mode(new_mode, "")
                     info("ui", f"Panel 1 badge updated: {new_mode}")
         except Exception as e:
             print(f"[MODE] Warning: Could not update panel badge: {e}")
@@ -157,7 +159,8 @@ def setup_mode_hotkey(window):
         if hasattr(window, "panel_balance"):
             panel1 = window.panel_balance
             if hasattr(panel1, "set_trading_mode"):
-                panel1.set_trading_mode(settings.TRADING_MODE)
+                # Note: account parameter is empty string for manual mode switching
+                panel1.set_trading_mode(settings.TRADING_MODE, "")
     except Exception:
         pass
 

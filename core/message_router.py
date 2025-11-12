@@ -600,14 +600,10 @@ class MessageRouter:
         if self.panel_balance:
             with contextlib.suppress(Exception):
                 self.panel_balance.set_account(acct)
-        # Optional helper flag for the rest of the app
-        if self.state:
-            self.state.current_account = acct
-            self.state.is_sim_mode = acct.lower().startswith("sim") if acct else False
 
-        # update theme (DEBUG/SIM/LIVE themes) via MainWindow if needed
+        # Update state manager mode (uses proper mode detection)
         if self.state:
-            self.state.current_account = acct
+            self.state.set_mode(acct)
 
     def _on_balance_update(self, payload: dict):
         bal = payload.get("balance")

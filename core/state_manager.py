@@ -32,14 +32,13 @@ class StateManager(QtCore.QObject):
 
         # -------------------- mode awareness (start)
         self.current_account: Optional[str] = None
-        self.is_sim_mode: bool = False
         self.current_mode: str = "SIM"  # "SIM", "LIVE", or "DEBUG"
 
         # Mode history: list of (timestamp_utc, mode, account) tuples
         self.mode_history: list[tuple[datetime, str, str]] = []
         self._add_to_mode_history(self.current_mode, self.current_account or "")
 
-        self._log_mode_change("INIT", self.is_sim_mode)
+        self._log_mode_change("INIT", self.current_mode)
         # -------------------- mode awareness (end)
 
         # ===== MODE-SPECIFIC BALANCE =====
@@ -150,18 +149,51 @@ class StateManager(QtCore.QObject):
     def set_positions(self, positions: list[dict]) -> None:
         self._state["positions"] = positions
 
+    # -------------------- mode properties (backward compatibility) ----
+    @property
+    def is_sim_mode(self) -> bool:
+        """
+        Backward compatibility property.
+        Returns True if current mode is SIM, False otherwise.
+
+        DEPRECATED: Use current_mode == "SIM" instead.
+        """
+        return self.current_mode == "SIM"
+
+    @is_sim_mode.setter
+    def is_sim_mode(self, value: bool) -> None:
+        """
+        Backward compatibility setter.
+        Sets current_mode based on boolean value.
+
+        DEPRECATED: Use set_mode() or current_mode directly instead.
+        """
+        self.current_mode = "SIM" if value else "LIVE"
+
     # -------------------- mode setter (start)
     def set_mode(self, account: str | None) -> None:
-        """Detect and update simulation/live mode based on account string."""
-        old_mode = self.is_sim_mode
+        """
+        Detect and update mode based on account string.
+        Uses proper mode detection (LIVE/SIM/DEBUG).
+        """
+        from utils.trade_mode import detect_mode_from_account
+
+        old_mode = self.current_mode
         self.current_account = account
-        new_mode = account.lower().startswith("sim") if account else False
+
+        # Use proper mode detection
+        new_mode = detect_mode_from_account(account or "")
+
         if new_mode != old_mode:
-            self.is_sim_mode = new_mode
-            # Detect mode string
-            mode_str = "SIM" if new_mode else "LIVE"
-            self._add_to_mode_history(mode_str, account or "")
-            self._log_mode_change("Router", new_mode)
+            self.current_mode = new_mode
+            self._add_to_mode_history(new_mode, account or "")
+            self._log_mode_change("StateManager.set_mode", new_mode)
+
+            # Emit modeChanged signal
+            try:
+                self.modeChanged.emit(new_mode)
+            except Exception:
+                pass  # Signal emission failure shouldn't crash
 
     # -------------------- mode setter (end)
 
@@ -214,14 +246,19 @@ class StateManager(QtCore.QObject):
     # -------------------- mode history tracking (end)
 
     # -------------------- mode logging (start)
-    def _log_mode_change(self, src: str, mode: bool) -> None:
-        """Internal helper for logging mode changes."""
+    def _log_mode_change(self, src: str, mode: str) -> None:
+        """
+        Internal helper for logging mode changes.
+
+        Args:
+            src: Source of the mode change (e.g., "StateManager.set_mode", "INIT")
+            mode: Mode string ("LIVE", "SIM", "DEBUG")
+        """
         try:
             from utils.logger import get_logger
 
             log = get_logger("StateManager")
-            label = "SIM" if mode else "LIVE"
-            log.info(f"[Mode] {src}: Application now in {label} mode")
+            log.info(f"[Mode] {src}: Application now in {mode} mode")
         except Exception:
             pass
 
