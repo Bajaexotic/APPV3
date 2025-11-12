@@ -697,7 +697,6 @@ class MessageRouter:
             self.state.update_position(sym, qty, avg)
 
     def _on_order_update(self, payload: dict):
-        print(f"[DEBUG router._on_order_update] ORDER_UPDATE received: {payload}")
         log.debug("router.order", payload_preview=str(payload)[:120])
 
         # CRITICAL: Detect and update mode from order's account
@@ -705,26 +704,21 @@ class MessageRouter:
         if account:
             from utils.trade_mode import detect_mode_from_account
             order_mode = detect_mode_from_account(account)
-            print(f"[DEBUG router._on_order_update] Order from account {account}, mode={order_mode}")
 
             if self.state and order_mode != self.state.current_mode:
                 old_mode = self.state.current_mode
                 self.state.current_mode = order_mode
-                print(f"[DEBUG router._on_order_update] MODE CHANGED: {old_mode} -> {order_mode}")
                 try:
                     self.state.modeChanged.emit(order_mode)
-                    print(f"[DEBUG router._on_order_update] modeChanged signal emitted")
                 except Exception as e:
-                    print(f"[DEBUG router._on_order_update] Error emitting mode signal: {e}")
+                    pass
 
         # Send to Panel2 (live trading panel) for real-time fill handling
         if self.panel_live:
-            print(f"[DEBUG router._on_order_update] Sending to panel_live.on_order_update")
             with contextlib.suppress(Exception):
                 self.panel_live.on_order_update(payload)
-            print(f"[DEBUG router._on_order_update] Sent to panel_live successfully")
         else:
-            print(f"[DEBUG router._on_order_update] WARNING: panel_live not available")
+            pass
 
         # Send to Panel3 (statistics panel) for trade statistics
         if self.panel_stats:

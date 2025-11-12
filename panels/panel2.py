@@ -270,11 +270,8 @@ class Panel2(QtWidgets.QWidget, ThemeAwareMixin):
             if qty > 0 and price is not None:
                 # Only seed if we're currently flat (no existing position)
                 if not (self.entry_qty and self.entry_price is not None and self.is_long is not None):
-                    print(f"  Position was flat, seeding from fill")
-                    print(f"  qty={qty}, price={price}, is_long={is_long}")
                     self.set_position(qty, price, is_long)
                     log.info(f"[panel2] Seeded position from fill: qty={qty}, price={price}, long={is_long}")
-                    print(f"  [OK] Early return - will NOT call notify_trade_closed()\n")
                     return  # Early exit - don't process as close since we just opened
 
             # Require we have an active position context for closing logic
@@ -284,15 +281,9 @@ class Panel2(QtWidgets.QWidget, ThemeAwareMixin):
             # CRITICAL FIX: Only process as a CLOSE if quantity is DECREASING
             # If qty stayed the same or increased, this is NOT a close - skip it!
             current_qty = self.entry_qty if self.entry_qty else 0
-            print(f"  Current position qty: {current_qty}")
-            print(f"  Incoming fill qty: {qty}")
-            print(f"  Order side (1=Buy, 2=Sell): {side}")
-            print(f"  Is long position: {self.is_long}")
 
             # If incoming qty >= current qty, this is adding to or maintaining position, not closing
             if qty >= current_qty:
-                print(f"  SKIP: qty is not decreasing (fill={qty}, current={current_qty})")
-                print(f"  This is likely a pyramid/add position, not a close\n")
                 return
 
             # If we reach here, it's a CLOSE
@@ -381,13 +372,6 @@ class Panel2(QtWidgets.QWidget, ThemeAwareMixin):
                 "account": account,  # ← Include account for mode detection (SIM/LIVE)
             }
 
-            print(f"  Symbol: {trade['symbol']}")
-            print(f"  Side: {trade['side']}")
-            print(f"  Qty: {trade['qty']}")
-            print(f"  Entry: ${trade['entry_price']:.2f}")
-            print(f"  Exit: ${trade['exit_price']:.2f}")
-            print(f"  PnL: ${trade['realized_pnl']:,.2f}")
-            print(f"  Account: {trade['account']}")
 
             self.notify_trade_closed(trade)
 
@@ -440,6 +424,7 @@ class Panel2(QtWidgets.QWidget, ThemeAwareMixin):
 
             # CRITICAL: Detect trade closure - position went from non-zero to zero
             if qty == 0 and self.entry_qty and self.entry_qty > 0 and self.entry_price is not None and self.is_long is not None:
+                pass
 
                 # Use last price as exit price (position already closed, we don't have fill price here)
                 exit_price = self.last_price if self.last_price else self.entry_price
@@ -502,8 +487,6 @@ class Panel2(QtWidgets.QWidget, ThemeAwareMixin):
                     "account": account,
                 }
 
-                print(f"  PnL: ${realized_pnl:,.2f}, account={account}")
-                print(f"  Calling notify_trade_closed()...\n")
 
                 # Persist the trade
                 self.notify_trade_closed(trade)

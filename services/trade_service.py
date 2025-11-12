@@ -42,15 +42,12 @@ class TradeManager:
         Logs opens when qty goes from 0 to N.
         Logs closes when qty goes from N to 0.
         """
-        print(f"  Payload keys: {list(payload.keys())}")
-        print(f"  Full payload: {payload}")
 
         symbol = payload.get("symbol")
         qty = payload.get("qty", 0)
         avg_entry = payload.get("avg_entry")
         trade_account = payload.get("TradeAccount")
 
-        print(f"  Extracted: symbol={symbol}, qty={qty}, avg_entry={avg_entry}")
 
         if not symbol:
             return
