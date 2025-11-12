@@ -222,6 +222,7 @@ class Panel2(QtWidgets.QWidget, ThemeAwareMixin):
             payload["ok"] = ok
             self.tradesChanged.emit(payload)
         except Exception as e:
+            pass
 
     # -------------------- Trade persistence hooks (end)
 

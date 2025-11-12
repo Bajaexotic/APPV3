@@ -100,6 +100,7 @@ def compute_trading_stats_for_timeframe(tf: str, mode: str | None = None) -> dic
         rows = query.order_by(time_field.asc()).all()
 
         if not rows:
+            pass
 
         for idx, r in enumerate(rows, 1):
             if r.realized_pnl is not None:

@@ -72,6 +72,7 @@ class Panel3(QtWidgets.QWidget, ThemeAwareMixin):
             if state and hasattr(state, 'modeChanged'):
                 state.modeChanged.connect(self._on_mode_changed)
         except Exception as e:
+            pass
 
         # Apply current theme colors (in case theme was switched before this panel was created)
         self.refresh_theme()
@@ -329,6 +330,7 @@ class Panel3(QtWidgets.QWidget, ThemeAwareMixin):
             if sr is not None:
                 self.sharpe_bar.set_value(float(sr))
         except Exception as e:
+            pass
 
         # Color the timeframe pills based on total PnL sign
         try:
@@ -338,6 +340,7 @@ class Panel3(QtWidgets.QWidget, ThemeAwareMixin):
             if hasattr(self.tf_pills, "set_active_color"):
                 self.tf_pills.set_active_color(active_color)
         except Exception as e:
+            pass
 
     def display_empty_metrics(self, mode: str, tf: str) -> None:
         """Display empty state when no trades exist for mode in timeframe."""
@@ -396,6 +399,7 @@ class Panel3(QtWidgets.QWidget, ThemeAwareMixin):
             if hasattr(self, "analyze_and_store_trade_snapshot"):
                 self.analyze_and_store_trade_snapshot()
             else:
+                pass
 
             log.debug(f"[panel3] Metrics refreshed on trade close")
         except Exception as e:

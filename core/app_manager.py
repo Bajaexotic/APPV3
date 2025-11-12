@@ -220,6 +220,7 @@ class MainWindow(QtWidgets.QMainWindow):
                     # Emit the balance signal directly to trigger display
                     self._state.balanceChanged.emit(starting_balance)
                 except Exception as e:
+                    pass
 
                 # Redraw graph with loaded equity curve
                 if hasattr(self.panel_balance, "_replot_from_cache"):
@@ -228,7 +229,7 @@ class MainWindow(QtWidgets.QMainWindow):
                 # Concise session start notification
                 print(f"[SESSION START] SIM Balance: ${starting_balance:,.2f} | Equity Points: {len(self.panel_balance._equity_points)}")
                 log.debug(f"[Startup] Panel1 initialized with SIM balance: ${starting_balance:,.2f}")
-            else:
+
         except Exception as e:
             import traceback
             traceback.print_exc()

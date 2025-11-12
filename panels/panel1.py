@@ -859,11 +859,6 @@ class Panel1(QtWidgets.QWidget):
                         cumulative_balance += trade.realized_pnl
                         timestamp = trade.exit_time.replace(tzinfo=timezone.utc).timestamp()
                         equity_points.append((timestamp, cumulative_balance))
-                        print(f"  Trade: {trade.symbol} | PnL={trade.realized_pnl:+.2f} | Balance=${cumulative_balance:,.2f} | Time={trade.exit_time}")
-
-                print(f"  Starting balance: ${starting_balance:,.2f}")
-                if equity_points:
-                    print(f"  Ending balance: ${equity_points[-1][1]:,.2f}")
 
                 return equity_points
 
@@ -1119,8 +1114,6 @@ class Panel1(QtWidgets.QWidget):
                 break
 
         filtered = pts[i0:]
-        if filtered:
-
         return filtered
 
     # --- replot current cache with TF filtering -----------------------------
@@ -1610,7 +1603,7 @@ class Panel1(QtWidgets.QWidget):
 
                 # CRITICAL: Also update the equity curve and PnL display for the current timeframe
                 self.update_equity_series_from_balance(display_balance, mode=current_mode)
-            else:
+
         except Exception as e:
             log.error(f"[Panel1] Error updating balance display: {e}")
 
@@ -1630,6 +1623,7 @@ class Panel1(QtWidgets.QWidget):
                     self.lbl_balance.update()
                     self.lbl_balance.repaint()
         except Exception as e:
+            pass
 
         # Refresh the PnL display with the new mode's data
         with contextlib.suppress(Exception):
